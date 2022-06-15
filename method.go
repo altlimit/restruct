@@ -6,12 +6,18 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"strings"
 	"unicode"
+)
+
+var (
+	pathToRe = regexp.MustCompile(`({\w+})`)
 )
 
 type (
 	method struct {
 		name    string
+		prefix  string
 		source  reflect.Value
 		path    string
 		pathRe  *regexp.Regexp
@@ -24,6 +30,7 @@ func (m *method) mustParse() {
 	var buf bytes.Buffer
 	nt := len(m.name)
 	skipDash := false
+	buf.WriteString(m.prefix)
 	for i := 0; i < nt; i++ {
 		c := rune(m.name[i])
 		if unicode.IsUpper(c) {
@@ -38,7 +45,7 @@ func (m *method) mustParse() {
 			skipDash = true
 		} else {
 			if skipDash && unicode.IsNumber(c) {
-				buf.WriteString(fmt.Sprintf(`(?P<%c>\w+)`, c))
+				buf.WriteString(fmt.Sprintf("{%c}", c))
 			} else {
 				buf.WriteRune(c)
 			}
@@ -46,7 +53,12 @@ func (m *method) mustParse() {
 		}
 	}
 	m.path = buf.String()
-	m.pathRe = regexp.MustCompile(m.path)
+	rePath := m.path
+	for _, m := range pathToRe.FindAllString(m.path, -1) {
+		rePath = strings.ReplaceAll(rePath, m, fmt.Sprintf(`(?P<%s>\w+)`, m[1:len(m)-1]))
+	}
+	rePath = "^" + rePath + "$"
+	m.pathRe = regexp.MustCompile(rePath)
 
 	if m.source.IsValid() {
 		mt := m.source.Type()
