@@ -15,7 +15,7 @@ func (m *MyService) Products(r *http.Request) interface{} {
 	return "products"
 }
 
-func (m *MyService) Products_0(r *http.Request) interface{} {
+func (m *MyService) Products_0(r *http.Request, w http.ResponseWriter) interface{} {
 
 	return "Product " + restruct.Param(r, "0")
 }

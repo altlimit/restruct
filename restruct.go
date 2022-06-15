@@ -10,6 +10,7 @@ func Handle(pattern string, handler *Handler) {
 		pattern += "/"
 	}
 	handler.prefix = pattern
+	handler.prefixLen = len(handler.prefix)
 	handler.updateCache()
 	http.Handle(pattern, handler)
 }
