@@ -2,18 +2,19 @@
 
 RESTruct is a go rest framework based on structs. The goal of this project is to automate routing, request and response based on struct methods.
 
-### Method name to routing
+### Method Named Routing
+
+We using method names to route our endpoints. The names below is how it translates to url paths.
 
 ```
-CamelCase turns to camel-case
+UpperCase turns to upper-case
 With_Underscore to with/underscore
 HasParam_0 to has-param/{0}
 ```
-You can add multiple service in a single handler.
 
-### Example Usage
+### Create a simple service
 
-Methods can only have *http.Request and/or http.ResponseWriter as a parameter. A single return value will be sent to the ResponseWriter. By default we have a DefaultWriter that uses Json and handles errors. You can customize this by implementing ResponseWriter interface. No return will still send it to response writer with nil value. Multiple returns will send it as an array of interface.
+There are utility methods included in this package to simplify building web services. You can refer to cmd/example for a more detailed examples.
 
 ```go
 package main
@@ -26,46 +27,27 @@ import (
 	"github.com/altlimit/restruct"
 )
 
-type MyService struct {
+type Calculator struct {
 }
 
-func (m *MyService) CustomResponse(r *http.Request) restruct.Response {
-	return restruct.Response{
-		Status:  http.StatusBadRequest,
-		Content: map[string]string{"Hello": "worl"},
-	}
-}
-
-func (m *MyService) MultiPle(r *http.Request) (int, error) {
-	return 1, errors.New("Hi")
-}
-
-func (m *MyService) WithBinding(r *http.Request) interface{} {
-	var req struct {
-		Test  []string `query:"test"`
-		TestI []int    `query:"t"`
-		Limit int      `query:"limit"`
-		Hello string   `json:"hello"`
-		Data  int64    `json:"data"`
-	}
-	if err := restruct.Bind(r, &req, http.MethodPost); err != nil {
-		return err
-	}
-	return req
-}
-
-func (m *MyService) WithParams_0(r *http.Request, w http.ResponseWriter) interface{} {
-	return "Product " + restruct.Param(r.Context(), "0") + " TAG: " + restruct.Param(r.Context(), "tag")
+func (c *Calculator) Add(r *http.Request) interface{} {
+    var req struct {
+        A int64 `json:"a"`
+        B int64 `json:"b"`
+    }
+    if err := restruct.Bind(r, &req, http.MethodPost); err != nil {
+        return err
+    }
+    return req.A + req.B
 }
 
 func main() {
-	svc := restruct.NewHandler(&MyService{})
-	svc.AddService("/{tag}/", &MyService{})
-	restruct.Handle("/api/v1/", svc)
+    // post {"a": 1, "b": 2} to http://localhost:8080/api/v1/add and you'll get a response
+	restruct.Handle("/api/v1/", restruct.NewHandler(&Calculator{}))
 	http.ListenAndServe(":8080", nil)
 }
 ```
 
 ### Suggestions
 
-If you have any suggestions bug fix, just create a pull request or open an issue.
+If you have any suggestions, found a bug, create a pull request or open an issue.

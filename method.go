@@ -59,11 +59,14 @@ func (m *method) mustParse() {
 	}
 	m.path = buf.String()
 	rePath := m.path
-	for _, m := range pathToRe.FindAllString(m.path, -1) {
-		rePath = strings.ReplaceAll(rePath, m, fmt.Sprintf(`(?P<%s>\w+)`, m[1:len(m)-1]))
+	params := pathToRe.FindAllString(m.path, -1)
+	if len(params) > 0 {
+		for _, m := range params {
+			rePath = strings.ReplaceAll(rePath, m, fmt.Sprintf(`(?P<%s>\w+)`, m[1:len(m)-1]))
+		}
+		rePath = "^" + rePath + "$"
+		m.pathRe = regexp.MustCompile(rePath)
 	}
-	rePath = "^" + rePath + "$"
-	m.pathRe = regexp.MustCompile(rePath)
 
 	if m.source.IsValid() {
 		mt := m.source.Type()

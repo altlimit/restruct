@@ -3,14 +3,10 @@ package restruct
 import "net/http"
 
 type (
-	// ErrorData for errors such as validation with custom data
-	ErrorData interface {
-		Data() interface{}
-	}
-
 	Error struct {
 		Status  int
 		Message string
+		Data    interface{}
 		Err     error
 	}
 )

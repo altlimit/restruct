@@ -16,6 +16,7 @@ type (
 
 	Response struct {
 		Status      int
+		Headers     map[string]string
 		ContentType string
 		Content     interface{}
 	}
@@ -29,8 +30,12 @@ func (dw *DefaultWriter) Write(w http.ResponseWriter, out interface{}) {
 
 	cType := "application/json; charset=UTF-8"
 	status := http.StatusOK
+	var headers map[string]string
 	if resp, ok := out.(Response); ok {
-		status = resp.Status
+		if resp.Status != 0 {
+			status = resp.Status
+		}
+		headers = resp.Headers
 		if resp.ContentType != "" {
 			cType = resp.ContentType
 		}
@@ -43,17 +48,25 @@ func (dw *DefaultWriter) Write(w http.ResponseWriter, out interface{}) {
 
 	if err, ok := out.(error); ok {
 		status = http.StatusInternalServerError
-		var msg string
+		var (
+			msg     string
+			errData interface{}
+		)
 		if e, ok := err.(Error); ok {
-			status = e.Status
+			if e.Status != 0 {
+				status = e.Status
+			}
 			if e.Message != "" {
 				msg = e.Message
 			}
+			if e.Data != nil {
+				errData = e.Data
+			}
 			if e.Err != nil {
-				log.Println("APIError:", e.Err)
+				log.Println("Error:", e.Err)
 			}
 		} else {
-			log.Println("APIError:", err)
+			log.Println("Error:", err)
 		}
 		if msg == "" {
 			msg = http.StatusText(status)
@@ -61,14 +74,24 @@ func (dw *DefaultWriter) Write(w http.ResponseWriter, out interface{}) {
 		errResp := map[string]interface{}{
 			"error": msg,
 		}
-		if e, ok := err.(ErrorData); ok {
-			errResp["data"] = e.Data()
+		if errData != nil {
+			errResp["data"] = errData
 		}
 		out = errResp
 	}
 
 	w.WriteHeader(status)
-	w.Header().Set("Content-Type", cType)
+	h := w.Header()
+	foundContentType := false
+	for k, v := range headers {
+		if k == "Content-Type" {
+			foundContentType = true
+		}
+		h.Add(k, v)
+	}
+	if !foundContentType {
+		h.Set("Content-Type", cType)
+	}
 	if b, ok := out.([]byte); ok {
 		_, err := w.Write(b)
 		if err != nil {

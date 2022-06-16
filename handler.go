@@ -91,8 +91,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writer = wrtr
 	}
 	for _, v := range h.methodCache {
-		match := v.pathRe.FindStringSubmatch(path)
-		tm := len(match)
+		var (
+			tm    int
+			match []string
+		)
+		if v.pathRe != nil {
+			match = v.pathRe.FindStringSubmatch(path)
+			tm = len(match)
+		} else if v.path == path {
+			tm = 1
+			log.Println("DirectMatch", v.path, path)
+		}
 		if tm > 0 {
 			if tm > 1 {
 				params := make(map[string]string)

@@ -5,5 +5,23 @@
 POST {{baseUrl}}/products?limit=102&test=a&test=b&t=1&t=5&t=500
 
 {
-    "hello": "world"
+    "photos": [{}]
+}
+
+###
+
+GET {{baseUrl}}/products/123Hello
+
+
+###
+
+GET {{baseUrl}}/view-pdf
+
+###
+
+POST {{baseUrl}}/sometag/add
+
+{
+    "a": 5,
+    "b": 2
 }

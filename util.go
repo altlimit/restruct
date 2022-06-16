@@ -3,6 +3,7 @@ package restruct
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -43,7 +44,26 @@ func Bind(r *http.Request, out interface{}, methods ...string) error {
 	if out == nil {
 		return nil
 	}
+	if err := BindQuery(r, out); err != nil {
+		return err
+	}
+	if r.Method == http.MethodGet {
+		return nil
+	}
+	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1048576))
+	if err != nil {
+		return fmt.Errorf("Bind: ioutil.ReadAll error %v", err)
+	}
+	if err := r.Body.Close(); err != nil {
+		return fmt.Errorf("Bind: r.Body.Close error %v", err)
+	}
+	if err := json.Unmarshal(body, out); err != nil {
+		return fmt.Errorf("Bind: json.Unmarshal error %v", err)
+	}
+	return nil
+}
 
+func BindQuery(r *http.Request, out interface{}) error {
 	t := reflect.TypeOf(out)
 	v := reflect.ValueOf(out)
 	if t.Kind() == reflect.Ptr {
@@ -93,19 +113,6 @@ func Bind(r *http.Request, out interface{}, methods ...string) error {
 				vv.Set(reflect.ValueOf(q))
 			}
 		}
-	}
-	if r.Method == http.MethodGet {
-		return nil
-	}
-	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1048576))
-	if err != nil {
-		return err
-	}
-	if err := r.Body.Close(); err != nil {
-		return err
-	}
-	if err := json.Unmarshal(body, out); err != nil {
-		return err
 	}
 	return nil
 }

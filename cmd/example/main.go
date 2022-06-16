@@ -1,49 +1,114 @@
 package main
 
 import (
-	"errors"
 	"log"
 	"net/http"
+	"reflect"
+	"strings"
 
 	"github.com/altlimit/restruct"
+	"github.com/go-playground/validator/v10"
 )
 
 type MyService struct {
+	validate *validator.Validate
 }
 
-func (m *MyService) Non(r *http.Request) restruct.Response {
+// extending bind to support validation with go validator
+func (m *MyService) bind(r *http.Request, src interface{}, methods ...string) error {
+	if err := restruct.Bind(r, src, methods...); err != nil {
+		return err
+	}
+	if src == nil {
+		return nil
+	}
+	if err := m.validate.Struct(src); err != nil {
+		valErrors := make(map[string]string)
+		for _, err := range err.(validator.ValidationErrors) {
+			valErrors[err.Namespace()] = err.Tag()
+		}
+		return restruct.Error{Message: "validation error", Data: valErrors}
+	}
+
+	return nil
+}
+
+// Direct response, you would usually have interface{} returns so if you get an error you will
+// only have to return it and ResponseWriter handles the rest.
+func (m *MyService) ViewPdf(r *http.Request) restruct.Response {
 	return restruct.Response{
-		Status:  http.StatusBadRequest,
-		Content: map[string]string{"Hello": "worl"},
+		Status:      http.StatusOK,
+		ContentType: "application/pdf",
+		Content:     []byte("PDFcontent"),
 	}
 }
 
-func (m *MyService) MultiPle(r *http.Request) (int, error) {
-	return 1, errors.New("Hi")
-}
-
+// Create new product with validation using bind and validate, in the above bind we extend
+// the existing bind and added our validator. A validation error will return
+// {
+//   "data": {
+//     "age": "min",
+//     "name": "required",
+//     "photos[0].url": "required"
+//   },
+//   "error": "validation error"
+// }
 func (m *MyService) Products(r *http.Request) interface{} {
-	var req struct {
-		Test  []string `query:"test"`
-		TestI []int    `query:"t"`
-		Limit int      `query:"limit"`
-		Hello string   `json:"hello"`
-		Data  int64    `json:"data"`
+	type Photo struct {
+		URL string `json:"url" validate:"required"`
 	}
-	if err := restruct.Bind(r, &req, http.MethodPost); err != nil {
+	var req struct {
+		Name   string  `json:"name" validate:"required"`
+		Price  int64   `json:"age" validate:"min=1"`
+		Photos []Photo `json:"photos" validate:"required,dive,min=1"`
+	}
+	if err := m.bind(r, &req, http.MethodPost); err != nil {
 		return err
 	}
 	return req
 }
 
+// Use number for parameters and get it using Param function, you can use named param when adding it to Handle in prefix.
 func (m *MyService) Products_0(r *http.Request, w http.ResponseWriter) interface{} {
+	productID := restruct.Param(r.Context(), "0")
+	tag := restruct.Param(r.Context(), "tag")
+	if err := m.bind(r, nil, http.MethodGet); err != nil {
+		return err
+	}
+	return "Product " + productID + " tag: " + tag
+}
 
-	return "Product " + restruct.Param(r.Context(), "0") + " TAG: " + restruct.Param(r.Context(), "tag")
+type Calculator struct {
+}
+
+func (c *Calculator) Add(r *http.Request) interface{} {
+	var req struct {
+		A int64 `json:"a"`
+		B int64 `json:"b"`
+	}
+	if err := restruct.Bind(r, &req, http.MethodPost); err != nil {
+		return err
+	}
+	return req.A + req.B
 }
 
 func main() {
-	svc := restruct.NewHandler(&MyService{})
-	svc.AddService("/{tag}/", &MyService{})
+	my := &MyService{validate: validator.New()}
+	my.validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		tags := []string{"json", "query"}
+		for _, tag := range tags {
+			name := strings.SplitN(fld.Tag.Get(tag), ",", 2)[0]
+			if name != "-" && name != "" {
+				return name
+			}
+		}
+		return fld.Name
+	})
+	// wrap your service with NewHandler, this will
+	svc := restruct.NewHandler(my)
+	// you can add additional service and prefix it with param or just direct paths
+	svc.AddService("/{tag}/", &Calculator{})
+	// add this service using Handle
 	restruct.Handle("/api/v1/", svc)
 	port := "8090"
 	log.Println("Listening " + port)
