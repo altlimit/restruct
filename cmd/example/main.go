@@ -69,13 +69,21 @@ func (m *MyService) Products(r *http.Request) interface{} {
 }
 
 // Use number for parameters and get it using Param function, you can use named param when adding it to Handle in prefix.
-func (m *MyService) Products_0(r *http.Request, w http.ResponseWriter) interface{} {
-	productID := restruct.Param(r.Context(), "0")
-	tag := restruct.Param(r.Context(), "tag")
+func (m *MyService) Products_0(r *http.Request) interface{} {
+	params := restruct.Params(r)
+	log.Println("Params", params)
+	productID := params["0"]
+	tag := params["tag"]
 	if err := m.bind(r, nil, http.MethodGet); err != nil {
 		return err
 	}
 	return "Product " + productID + " tag: " + tag
+}
+
+// You can emulate a standard handler by using request and response in your parameter
+func (m *MyService) StandardHandler(r *http.Request, w http.ResponseWriter) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Hello"))
 }
 
 type Calculator struct {

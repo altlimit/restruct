@@ -2,7 +2,6 @@ package restruct
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"reflect"
 	"strings"
@@ -41,7 +40,6 @@ func (h *Handler) updateCache() {
 			}
 			mm.mustParse()
 			h.methodCache = append(h.methodCache, mm)
-			log.Println(h.prefix + mm.path)
 		}
 	}
 }
@@ -100,7 +98,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			tm = len(match)
 		} else if v.path == path {
 			tm = 1
-			log.Println("DirectMatch", v.path, path)
 		}
 		if tm > 0 {
 			if tm > 1 {
@@ -125,7 +122,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			out := v.source.Call(args)
 			ot := len(out)
 			if ot == 0 {
-				writer.Write(w, nil)
+				return
 			} else if ot == 1 {
 				writer.Write(w, out[0].Interface())
 			} else {

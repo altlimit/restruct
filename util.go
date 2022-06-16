@@ -1,7 +1,6 @@
 package restruct
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,11 +12,11 @@ import (
 	"github.com/altlimit/restruct/structtag"
 )
 
-func Param(ctx context.Context, name string) string {
-	if params, ok := ctx.Value(keyParams).(map[string]string); ok {
-		return params[name]
+func Params(r *http.Request) map[string]string {
+	if params, ok := r.Context().Value(keyParams).(map[string]string); ok {
+		return params
 	}
-	return ""
+	return map[string]string{}
 }
 
 func Query(r *http.Request, name string) string {
