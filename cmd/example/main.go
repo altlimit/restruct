@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"reflect"
@@ -13,6 +14,10 @@ import (
 type MyService struct {
 	validate *validator.Validate
 }
+
+var (
+	errBadRequest = errors.New("bad request")
+)
 
 // extending bind to support validation with go validator
 func (m *MyService) bind(r *http.Request, src interface{}, methods ...string) error {
@@ -100,6 +105,10 @@ func (c *Calculator) Add(r *http.Request) interface{} {
 	return req.A + req.B
 }
 
+func (c *Calculator) Err(r *http.Request) interface{} {
+	return errBadRequest
+}
+
 func limitsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Limits reader")
@@ -125,6 +134,12 @@ func authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func catchAllHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Caught", r.URL.Path)
+	}
+}
+
 func main() {
 	my := &MyService{validate: validator.New()}
 	my.validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
@@ -143,8 +158,13 @@ func main() {
 	svc.AddService("/{tag}/", &Calculator{})
 	// add middleware
 	svc.Use(limitsMiddleware, authMiddleware)
+	// custom writer
+	svc.AddWriter("application/json", &rs.DefaultWriter{Errors: map[error]rs.Error{
+		errBadRequest: {Status: http.StatusBadRequest},
+	}})
 	// add this service using Handle
 	rs.Handle("/api/v1/", svc)
+	http.Handle("/", catchAllHandler())
 	port := "8090"
 	log.Println("Listening " + port)
 	http.ListenAndServe(":"+port, nil)

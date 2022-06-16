@@ -12,6 +12,7 @@ type (
 	}
 
 	DefaultWriter struct {
+		Errors map[error]Error
 	}
 
 	Response struct {
@@ -52,6 +53,11 @@ func (dw *DefaultWriter) Write(w http.ResponseWriter, out interface{}) {
 			msg     string
 			errData interface{}
 		)
+		if dw.Errors != nil {
+			if ee, ok := dw.Errors[err]; ok {
+				err = ee
+			}
+		}
 		if e, ok := err.(Error); ok {
 			if e.Status != 0 {
 				status = e.Status
@@ -97,7 +103,11 @@ func (dw *DefaultWriter) Write(w http.ResponseWriter, out interface{}) {
 		if err != nil {
 			log.Println("WriteError", err)
 		}
-	} else if err := json.NewEncoder(w).Encode(out); err != nil {
-		log.Println("WriteJsonError", err)
+	} else {
+		enc := json.NewEncoder(w)
+		enc.SetEscapeHTML(false)
+		if err := enc.Encode(out); err != nil {
+			log.Println("WriteJsonError", err)
+		}
 	}
 }

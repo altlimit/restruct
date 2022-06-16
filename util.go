@@ -57,7 +57,10 @@ func Bind(r *http.Request, out interface{}, methods ...string) error {
 		return fmt.Errorf("Bind: r.Body.Close error %v", err)
 	}
 	if err := json.Unmarshal(body, out); err != nil {
-		return fmt.Errorf("Bind: json.Unmarshal error %v", err)
+		return Error{
+			Status: http.StatusBadRequest,
+			Err:    fmt.Errorf("Bind: json.Unmarshal error %v", err),
+		}
 	}
 	return nil
 }
