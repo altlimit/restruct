@@ -23,8 +23,17 @@ func (m *MyService) MultiPle(r *http.Request) (int, error) {
 }
 
 func (m *MyService) Products(r *http.Request) interface{} {
-
-	return errors.New("Hello")
+	var req struct {
+		Test  []string `query:"test"`
+		TestI []int    `query:"t"`
+		Limit int      `query:"limit"`
+		Hello string   `json:"hello"`
+		Data  int64    `json:"data"`
+	}
+	if err := restruct.Bind(r, &req, http.MethodPost); err != nil {
+		return err
+	}
+	return req
 }
 
 func (m *MyService) Products_0(r *http.Request, w http.ResponseWriter) interface{} {

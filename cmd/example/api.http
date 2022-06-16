@@ -1,0 +1,9 @@
+@baseUrl = http://localhost:8090/api/v1
+
+###
+
+POST {{baseUrl}}/products?limit=102&test=a&test=b&t=1&t=5&t=500
+
+{
+    "hello": "world"
+}
