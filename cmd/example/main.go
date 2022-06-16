@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net/http"
 
@@ -10,15 +11,25 @@ import (
 type MyService struct {
 }
 
+func (m *MyService) Non(r *http.Request) restruct.Response {
+	return restruct.Response{
+		Status:  http.StatusBadRequest,
+		Content: map[string]string{"Hello": "worl"},
+	}
+}
+
+func (m *MyService) MultiPle(r *http.Request) (int, error) {
+	return 1, errors.New("Hi")
+}
+
 func (m *MyService) Products(r *http.Request) interface{} {
 
-	return "products"
+	return errors.New("Hello")
 }
 
 func (m *MyService) Products_0(r *http.Request, w http.ResponseWriter) interface{} {
 
-	log.Println("Product " + restruct.Param(r.Context(), "0"))
-	return nil
+	return "Product " + restruct.Param(r.Context(), "0") + " TAG: " + restruct.Param(r.Context(), "tag")
 }
 
 func main() {

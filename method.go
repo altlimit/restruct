@@ -10,6 +10,11 @@ import (
 	"unicode"
 )
 
+const (
+	paramRequest  = "request"
+	paramResponse = "response"
+)
+
 var (
 	pathToRe = regexp.MustCompile(`({\w+})`)
 )
@@ -68,12 +73,12 @@ func (m *method) mustParse() {
 		for i := 0; i < mt.NumIn(); i++ {
 			in := mt.In(i)
 			if in == reflect.TypeOf(&http.Request{}) {
-				m.params = append(m.params, "request")
+				m.params = append(m.params, paramRequest)
 				continue
 			} else {
 				rwType := reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
 				if in.Implements(rwType) {
-					m.params = append(m.params, "response")
+					m.params = append(m.params, paramResponse)
 					continue
 				}
 			}

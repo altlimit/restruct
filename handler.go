@@ -73,6 +73,23 @@ func (h *Handler) AddWriter(contentType string, w ResponseWriter) {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path[h.prefixLen:]
+	var writer ResponseWriter
+	if len(h.writers) == 0 {
+		writer = &DefaultWriter{}
+	} else {
+		contentType := strings.Split(r.Header.Get("Accept"), ";")[0]
+		if contentType == "" {
+			contentType = strings.Split(r.Header.Get("Content-Type"), ";")[0]
+		}
+		wrtr, ok := h.writers[contentType]
+		if !ok {
+			for _, ww := range h.writers {
+				wrtr = ww
+				break
+			}
+		}
+		writer = wrtr
+	}
 	for _, v := range h.methodCache {
 		match := v.pathRe.FindStringSubmatch(path)
 		tm := len(match)
@@ -88,8 +105,30 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ctx = context.WithValue(ctx, keyParams, params)
 				r = r.WithContext(ctx)
 			}
-			log.Println("Found", v.name, match, path)
+			var args []reflect.Value
+			for _, v := range v.params {
+				if v == paramRequest {
+					args = append(args, reflect.ValueOf(r))
+				} else if v == paramResponse {
+					args = append(args, reflect.ValueOf(w))
+				}
+			}
+			out := v.source.Call(args)
+			ot := len(out)
+			if ot == 0 {
+				writer.Write(w, nil)
+			} else if ot == 1 {
+				writer.Write(w, out[0].Interface())
+			} else {
+				var outs []interface{}
+				for _, o := range out {
+					outs = append(outs, o.Interface())
+				}
+				writer.Write(w, outs)
+			}
+			return
 		}
 	}
-	log.Println("Path", path)
+
+	writer.Write(w, Error{Status: http.StatusNotFound})
 }
