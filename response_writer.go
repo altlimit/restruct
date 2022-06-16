@@ -53,14 +53,14 @@ func (dw *DefaultWriter) Write(w http.ResponseWriter, out interface{}) {
 			msg     string
 			errData interface{}
 		)
-		if dw.Errors != nil {
-			if _, ok := err.(Error); !ok {
-				if ee, ok := dw.Errors[err]; ok {
-					err = ee
-				}
+		e, ok := err.(Error)
+		if dw.Errors != nil && !ok {
+			if ee, k := dw.Errors[err]; k {
+				ok = true
+				e = ee
 			}
 		}
-		if e, ok := err.(Error); ok {
+		if ok {
 			if e.Status != 0 {
 				status = e.Status
 			}
