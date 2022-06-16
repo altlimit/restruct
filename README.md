@@ -6,23 +6,14 @@ RESTruct is a go rest framework based on structs. The goal of this project is to
 * [Install](#install)
 * [Examples](#examples)
 * [Route By Methods](#route-by-methods)
+* [Response Writer](#response-writer)
+* [Middleware](#middleware)
 ---
 
 ## Install
 
 ```sh
 go get github.com/altlimit/restruct
-```
-
-## Route By Methods
-
-Public method will become routed using the pattern below.
-
-```
-UpperCase turns to upper-case
-With_Underscore to with/underscore
-HasParam_0 to has-param/{0}
-HasParam_0_AndMore_1 to has-param/{0}/and-more/{1}
 ```
 
 ## Examples
@@ -84,3 +75,60 @@ func (c *Calculator) Edit_0(r *http.Request) interface{} {
 ```
 
 You can refer to cmd/example for some advance usage.
+
+
+## Route By Methods
+
+Public method will become routed using the pattern below.
+
+```
+UpperCase turns to upper-case
+With_Underscore to with/underscore
+HasParam_0 to has-param/{0}
+HasParam_0_AndMore_1 to has-param/{0}/and-more/{1}
+```
+
+## Response Writer
+
+The default ResponseWriter is DefaultWriter which uses json.Encoder().Encode to write outputs. This also handles errors and status codes. You can modify the output by implementing the ResponseWriter interface and adding it to your handler.
+
+```go
+type TextWriter struct {
+
+}
+
+func (tw *TextWriter) Write(w http.ResponseWriter, out interface{}) {
+    w.WriteHeader(http.StatusOK)
+    w.Header().Set("Content-Type", "text/plain")
+    w.Write([]byte(fmt.Sprintf("%v", out)))
+}
+
+h := restruct.NewHandler(&Calculator{})
+h.AddWriter("text/plain", &TextWriter{})
+```
+
+This will write all response in plain text. If no content type is found it will use the first response writer it finds.
+
+## Middleware
+
+Uses standard middleware and add by `handler.Use(...)`
+
+```go
+func auth(next http.Handler) http.Handler {
+	wr := rs.DefaultWriter{} // or your preferred writer
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "abc" {
+			wr.Write(w, rs.Error{Status: http.StatusUnauthorized})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+h := restruct.NewHandler(&Calculator{})
+h.Use(auth)
+```
+
+## License
+
+MIT licened. See the LICENSE file for details.

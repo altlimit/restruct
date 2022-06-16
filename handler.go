@@ -16,14 +16,25 @@ const (
 )
 
 type (
+	middleware func(http.Handler) http.Handler
+
 	Handler struct {
 		prefix      string
 		prefixLen   int
 		services    map[string]interface{}
-		methodCache []*method
 		writers     map[string]ResponseWriter
+		methodCache []*method
+		middlewares []middleware
+	}
+
+	wrappedHandler struct {
+		handler http.Handler
 	}
 )
+
+func (wh *wrappedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	wh.handler.ServeHTTP(w, r)
+}
 
 func (h *Handler) updateCache() {
 	h.methodCache = make([]*method, 0)
@@ -69,6 +80,10 @@ func (h *Handler) AddWriter(contentType string, w ResponseWriter) {
 	h.writers[contentType] = w
 }
 
+func (h *Handler) Use(fns ...middleware) {
+	h.middlewares = append(h.middlewares, fns...)
+}
+
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path[h.prefixLen:]
 	var writer ResponseWriter
@@ -100,6 +115,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			tm = 1
 		}
 		if tm > 0 {
+
 			if tm > 1 {
 				params := make(map[string]string)
 				for i, name := range v.pathRe.SubexpNames() {
@@ -111,30 +127,41 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ctx = context.WithValue(ctx, keyParams, params)
 				r = r.WithContext(ctx)
 			}
-			var args []reflect.Value
-			for _, v := range v.params {
-				if v == paramRequest {
-					args = append(args, reflect.ValueOf(r))
-				} else if v == paramResponse {
-					args = append(args, reflect.ValueOf(w))
-				}
+
+			handler := &wrappedHandler{handler: h.createHandler(writer, v)}
+			for i := len(h.middlewares) - 1; i >= 0; i-- {
+				handler = &wrappedHandler{handler: h.middlewares[i](handler)}
 			}
-			out := v.source.Call(args)
-			ot := len(out)
-			if ot == 0 {
-				return
-			} else if ot == 1 {
-				writer.Write(w, out[0].Interface())
-			} else {
-				var outs []interface{}
-				for _, o := range out {
-					outs = append(outs, o.Interface())
-				}
-				writer.Write(w, outs)
-			}
+			handler.ServeHTTP(w, r)
 			return
 		}
 	}
 
 	writer.Write(w, Error{Status: http.StatusNotFound})
+}
+
+func (h *Handler) createHandler(writer ResponseWriter, m *method) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var args []reflect.Value
+		for _, v := range m.params {
+			if v == paramRequest {
+				args = append(args, reflect.ValueOf(r))
+			} else if v == paramResponse {
+				args = append(args, reflect.ValueOf(w))
+			}
+		}
+		out := m.source.Call(args)
+		ot := len(out)
+		if ot == 0 {
+			return
+		} else if ot == 1 {
+			writer.Write(w, out[0].Interface())
+		} else {
+			var outs []interface{}
+			for _, o := range out {
+				outs = append(outs, o.Interface())
+			}
+			writer.Write(w, outs)
+		}
+	})
 }

@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/altlimit/restruct"
+	rs "github.com/altlimit/restruct"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -16,7 +16,7 @@ type MyService struct {
 
 // extending bind to support validation with go validator
 func (m *MyService) bind(r *http.Request, src interface{}, methods ...string) error {
-	if err := restruct.Bind(r, src, methods...); err != nil {
+	if err := rs.Bind(r, src, methods...); err != nil {
 		return err
 	}
 	if src == nil {
@@ -27,7 +27,7 @@ func (m *MyService) bind(r *http.Request, src interface{}, methods ...string) er
 		for _, err := range err.(validator.ValidationErrors) {
 			valErrors[err.Namespace()] = err.Tag()
 		}
-		return restruct.Error{Message: "validation error", Data: valErrors}
+		return rs.Error{Status: http.StatusBadRequest, Message: "validation error", Data: valErrors}
 	}
 
 	return nil
@@ -35,8 +35,8 @@ func (m *MyService) bind(r *http.Request, src interface{}, methods ...string) er
 
 // Direct response, you would usually have interface{} returns so if you get an error you will
 // only have to return it and ResponseWriter handles the rest.
-func (m *MyService) ViewPdf(r *http.Request) restruct.Response {
-	return restruct.Response{
+func (m *MyService) ViewPdf(r *http.Request) rs.Response {
+	return rs.Response{
 		Status:      http.StatusOK,
 		ContentType: "application/pdf",
 		Content:     []byte("PDFcontent"),
@@ -70,7 +70,7 @@ func (m *MyService) Products(r *http.Request) interface{} {
 
 // Use number for parameters and get it using Param function, you can use named param when adding it to Handle in prefix.
 func (m *MyService) Products_0(r *http.Request) interface{} {
-	params := restruct.Params(r)
+	params := rs.Params(r)
 	log.Println("Params", params)
 	productID := params["0"]
 	tag := params["tag"]
@@ -94,10 +94,35 @@ func (c *Calculator) Add(r *http.Request) interface{} {
 		A int64 `json:"a"`
 		B int64 `json:"b"`
 	}
-	if err := restruct.Bind(r, &req, http.MethodPost); err != nil {
+	if err := rs.Bind(r, &req, http.MethodPost); err != nil {
 		return err
 	}
 	return req.A + req.B
+}
+
+func limitsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Limits reader")
+		var maxBodyLimit int64 = 1 << 20
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/upload") {
+			maxBodyLimit = 128 << 20
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxBodyLimit)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func authMiddleware(next http.Handler) http.Handler {
+	wr := rs.DefaultWriter{}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Auth")
+		if strings.HasSuffix(r.URL.Path, "/standard-handler") && r.Header.Get("Authorization") != "abc" {
+			log.Println("Failed Auth")
+			wr.Write(w, rs.Error{Status: http.StatusUnauthorized})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func main() {
@@ -112,12 +137,14 @@ func main() {
 		}
 		return fld.Name
 	})
-	// wrap your service with NewHandler, this will
-	svc := restruct.NewHandler(my)
+	// wrap your service with NewHandler
+	svc := rs.NewHandler(my)
 	// you can add additional service and prefix it with param or just direct paths
 	svc.AddService("/{tag}/", &Calculator{})
+	// add middleware
+	svc.Use(limitsMiddleware, authMiddleware)
 	// add this service using Handle
-	restruct.Handle("/api/v1/", svc)
+	rs.Handle("/api/v1/", svc)
 	port := "8090"
 	log.Println("Listening " + port)
 	http.ListenAndServe(":"+port, nil)

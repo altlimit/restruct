@@ -29,3 +29,4 @@ POST {{baseUrl}}/sometag/add
 ###
 
 GET {{baseUrl}}/standard-handler
+Authorization: abc
