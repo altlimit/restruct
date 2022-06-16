@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"reflect"
@@ -17,6 +18,14 @@ type MyService struct {
 
 var (
 	errBadRequest = errors.New("bad request")
+	errAuth       = fmt.Errorf("not logged in")
+
+	writer = &rs.DefaultWriter{
+		Errors: map[error]rs.Error{
+			errAuth:       {Status: http.StatusUnauthorized},
+			errBadRequest: {Status: http.StatusBadRequest},
+		},
+	}
 )
 
 // extending bind to support validation with go validator
@@ -106,7 +115,7 @@ func (c *Calculator) Add(r *http.Request) interface{} {
 }
 
 func (c *Calculator) Err(r *http.Request) interface{} {
-	return errBadRequest
+	return errAuth
 }
 
 func limitsMiddleware(next http.Handler) http.Handler {
@@ -159,9 +168,7 @@ func main() {
 	// add middleware
 	svc.Use(limitsMiddleware, authMiddleware)
 	// custom writer
-	svc.AddWriter("application/json", &rs.DefaultWriter{Errors: map[error]rs.Error{
-		errBadRequest: {Status: http.StatusBadRequest},
-	}})
+	svc.AddWriter("application/json", writer)
 	// add this service using Handle
 	rs.Handle("/api/v1/", svc)
 	http.Handle("/", catchAllHandler())
