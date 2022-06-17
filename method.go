@@ -57,23 +57,24 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 	tvt = vv.NumField()
 	for i := 0; i < tvt; i++ {
 		f := tv.Field(i)
-		if f.IsExported() {
-			route := f.Tag.Get("route")
-			if route != "-" {
-				fk := f.Type.Kind()
-				fv := vv.Field(i)
-				if fk == reflect.Ptr {
-					fk = f.Type.Elem().Kind()
-					fv = fv.Elem()
+		if f.PkgPath != "" {
+			continue
+		}
+		route := f.Tag.Get("route")
+		if route != "-" {
+			fk := f.Type.Kind()
+			fv := vv.Field(i)
+			if fk == reflect.Ptr {
+				fk = f.Type.Elem().Kind()
+				fv = fv.Elem()
+			}
+			if fk == reflect.Struct && fv.IsValid() {
+				if route == "" {
+					route = nameToPath(f.Name)
 				}
-				if fk == reflect.Struct && fv.IsValid() {
-					if route == "" {
-						route = nameToPath(f.Name)
-					}
-					route = strings.Trim(route, "/") + "/"
-					sv := fv.Addr().Interface()
-					methods = append(methods, serviceToMethods(prefix+route, sv)...)
-				}
+				route = strings.Trim(route, "/") + "/"
+				sv := fv.Addr().Interface()
+				methods = append(methods, serviceToMethods(prefix+route, sv)...)
 			}
 		}
 	}
