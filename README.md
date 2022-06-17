@@ -1,3 +1,5 @@
+![Run Tests](https://github.com/altlimit/restruct/actions/workflows/run-tests.yaml/badge.svg)
+
 # restruct
 
 RESTruct is a go rest framework based on structs. The goal of this project is to automate routing, request and response based on struct methods.
