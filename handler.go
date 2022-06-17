@@ -190,3 +190,12 @@ func (h *Handler) updateCache() {
 		}
 	}
 }
+
+func (h *Handler) mustCompile(prefix string) {
+	if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+	h.prefix = prefix
+	h.prefixLen = len(h.prefix)
+	h.updateCache()
+}

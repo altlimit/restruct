@@ -31,6 +31,9 @@ type (
 // This writes application/json content type uses status codes 200
 // on valid ones and 500 on uncaught, 400 on malformed json, etc.
 func (dw *DefaultWriter) Write(w http.ResponseWriter, out interface{}) {
+	if w == nil {
+		return
+	}
 	if out == nil {
 		w.WriteHeader(http.StatusOK)
 		return
