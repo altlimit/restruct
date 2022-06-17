@@ -36,6 +36,10 @@ Authorization: abc
 
 GET {{baseUrl}}/abc/err
 
+###
+
+POST {{baseUrl}}/calc/y/another/.custom./routed/000
+
 
 ###
 

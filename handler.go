@@ -19,12 +19,13 @@ type (
 	middleware func(http.Handler) http.Handler
 
 	Handler struct {
-		prefix      string
-		prefixLen   int
-		services    map[string]interface{}
-		writers     map[string]ResponseWriter
-		methodCache []*method
-		middlewares []middleware
+		prefix            string
+		prefixLen         int
+		services          map[string]interface{}
+		writers           map[string]ResponseWriter
+		methodCache       []*method
+		methodCacheByPath map[string]*method
+		middlewares       []middleware
 	}
 
 	wrappedHandler struct {
@@ -49,6 +50,9 @@ func (h *Handler) Routes() (routes []string) {
 	h.updateCache()
 	for _, m := range h.methodCache {
 		routes = append(routes, h.prefix+m.path)
+	}
+	for p := range h.methodCacheByPath {
+		routes = append(routes, h.prefix+p)
 	}
 	return
 }
@@ -102,6 +106,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		writer = wrtr
 	}
+	// if there are middleware we wrap it in reverse so it's called
+	// in the order they were added
+	chain := func(m *method) *wrappedHandler {
+		handler := &wrappedHandler{handler: h.createHandler(writer, m)}
+		for i := len(h.middlewares) - 1; i >= 0; i-- {
+			handler = &wrappedHandler{handler: h.middlewares[i](handler)}
+		}
+		return handler
+	}
+	if v, ok := h.methodCacheByPath[path]; ok {
+		chain(v).ServeHTTP(w, r)
+		return
+	}
 	for _, v := range h.methodCache {
 		params, ok := v.match(path)
 		if ok {
@@ -110,14 +127,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ctx = context.WithValue(ctx, keyParams, params)
 				r = r.WithContext(ctx)
 			}
-
-			// if there are middleware we wrap it in reverse so it's called
-			// in the order they were added
-			handler := &wrappedHandler{handler: h.createHandler(writer, v)}
-			for i := len(h.middlewares) - 1; i >= 0; i-- {
-				handler = &wrappedHandler{handler: h.middlewares[i](handler)}
-			}
-			handler.ServeHTTP(w, r)
+			chain(v).ServeHTTP(w, r)
 			return
 		}
 	}
@@ -163,8 +173,20 @@ func (h *Handler) updateCache() {
 	if h.methodCache != nil {
 		return
 	}
-
+	var cache []*method
 	for k, v := range h.services {
-		h.methodCache = append(h.methodCache, serviceToMethods(k, v)...)
+		cache = append(cache, serviceToMethods(k, v)...)
+	}
+	h.methodCacheByPath = make(map[string]*method)
+	for _, v := range cache {
+		if v.pathRe == nil {
+			_, ok := h.methodCacheByPath[v.path]
+			if ok {
+				panic("duplicate " + v.path + " registered")
+			}
+			h.methodCacheByPath[v.path] = v
+		} else {
+			h.methodCache = append(h.methodCache, v)
+		}
 	}
 }

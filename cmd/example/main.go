@@ -108,7 +108,7 @@ func (m *MyService) StandardHandler(r *http.Request, w http.ResponseWriter) {
 type Nested struct{}
 
 func (n *Nested) Routes() map[string]string {
-	return map[string]string{"Sample": "/.custom./routed/{id}"}
+	return map[string]string{"Sample": ".custom./routed/{id}"}
 }
 
 func (n *Nested) Sample() {

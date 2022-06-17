@@ -59,7 +59,7 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 			source: vv.Method(i),
 		}
 		if route, ok := routes[m.Name]; ok {
-			mm.path = prefix + strings.Trim(route, "/")
+			mm.path = prefix + strings.TrimLeft(route, "/")
 		} else {
 			mm.path = prefix + nameToPath(m.Name)
 		}
