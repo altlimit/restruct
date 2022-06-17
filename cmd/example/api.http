@@ -19,7 +19,7 @@ GET {{baseUrl}}/view-pdf
 
 ###
 
-POST {{baseUrl}}/sometag/add
+POST {{baseUrl}}/calc/123/add
 
 {
     "a": 5,

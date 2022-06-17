@@ -8,6 +8,7 @@ RESTruct is a go rest framework based on structs. The goal of this project is to
 * [Route By Methods](#route-by-methods)
 * [Response Writer](#response-writer)
 * [Middleware](#middleware)
+* [Nested Structs](#nested-structs)
 ---
 
 ## Install
@@ -98,7 +99,11 @@ type TextWriter struct {
 }
 
 func (tw *TextWriter) Write(w http.ResponseWriter, out interface{}) {
-    w.WriteHeader(http.StatusOK)
+    if err, ok := out.(error); ok {
+        w.WriteHeader(http.StatusInternalServerError)
+    } else {
+        w.WriteHeader(http.StatusOK)
+    }
     w.Header().Set("Content-Type", "text/plain")
     w.Write([]byte(fmt.Sprintf("%v", out)))
 }
@@ -128,6 +133,33 @@ func auth(next http.Handler) http.Handler {
 h := restruct.NewHandler(&Calculator{})
 h.Use(auth)
 ```
+
+## Nested Structs
+
+You can also create nested structs for routing. You can use route tag to customize or add `route:"-"` to skip exported structs.
+
+```go
+type (
+    V1 struct {
+        Users User
+        DB DB `route:"-"`
+    }
+
+    User struct {
+
+    }
+)
+
+func (v *V1) Drop() {}
+func (u *User)  SendEmail() {}
+
+func main() {
+    restruct.Handle("/api/v1/", restruct.NewHandler(&V1{}))
+    http.ListenAndServe(":8080", nil)
+}
+```
+
+Will generate route: /api/v1/drop and /api/v1/users/send-email
 
 ## License
 

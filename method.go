@@ -31,13 +31,66 @@ type (
 	}
 )
 
-func (m *method) mustParse() {
+// returns methods from structs and nested structs
+func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
+	tv := reflect.TypeOf(svc)
+	vv := reflect.ValueOf(svc)
+
+	// get methods first
+	tvt := vv.NumMethod()
+	for i := 0; i < tvt; i++ {
+		m := tv.Method(i)
+		mm := &method{
+			name:   m.Name,
+			prefix: prefix,
+			source: vv.Method(i),
+		}
+		mm.mustParse()
+		methods = append(methods, mm)
+	}
+
+	if tv.Kind() == reflect.Ptr {
+		tv = tv.Elem()
+		vv = vv.Elem()
+	}
+	// check fields
+	tvt = vv.NumField()
+	for i := 0; i < tvt; i++ {
+		f := tv.Field(i)
+		if f.IsExported() {
+			route := f.Tag.Get("route")
+			if route != "-" {
+				fk := f.Type.Kind()
+				fv := vv.Field(i)
+				if fk == reflect.Ptr {
+					fk = f.Type.Elem().Kind()
+					fv = fv.Elem()
+				}
+				if fk == reflect.Struct && fv.IsValid() {
+					if route == "" {
+						route = nameToPath(f.Name)
+					}
+					route = strings.Trim(route, "/") + "/"
+					sv := fv.Addr().Interface()
+					methods = append(methods, serviceToMethods(prefix+route, sv)...)
+				}
+			}
+		}
+	}
+	return
+}
+
+// Converts a Name into a path route like:
+// HelloWorld -> hello-world
+// Hello_World -> hello_world
+// Hello_0 -> hello/{0}
+// Hello_0_World -> hello/{0}/world
+func nameToPath(name string) string {
 	var buf bytes.Buffer
-	nt := len(m.name)
+	nt := len(name)
 	skipDash := false
-	buf.WriteString(m.prefix)
 	for i := 0; i < nt; i++ {
-		c := rune(m.name[i])
+		c := rune(name[i])
 		if unicode.IsUpper(c) {
 			if i > 0 && !skipDash {
 				buf.WriteRune('-')
@@ -57,7 +110,13 @@ func (m *method) mustParse() {
 			skipDash = false
 		}
 	}
-	m.path = buf.String()
+	return buf.String()
+}
+
+// Populates method fields, if there's no params it will leave pathRe nil and
+// directly compare path with equality.
+func (m *method) mustParse() {
+	m.path = m.prefix + nameToPath(m.name)
 	rePath := m.path
 	params := pathToRe.FindAllString(m.path, -1)
 	if len(params) > 0 {
@@ -89,4 +148,23 @@ func (m *method) mustParse() {
 		}
 	}
 
+}
+
+// Checks path against method if it's valid, this accepts a stripped path and not a full path
+func (m *method) match(path string) (params map[string]string, ok bool) {
+	params = make(map[string]string)
+	if m.pathRe != nil {
+		match := m.pathRe.FindStringSubmatch(path)
+		if len(match) > 0 {
+			for i, name := range m.pathRe.SubexpNames() {
+				if i != 0 && name != "" {
+					params[name] = match[i]
+				}
+			}
+			ok = true
+		}
+	} else if m.path == path {
+		ok = true
+	}
+	return
 }

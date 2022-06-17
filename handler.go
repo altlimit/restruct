@@ -36,25 +36,7 @@ func (wh *wrappedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wh.handler.ServeHTTP(w, r)
 }
 
-func (h *Handler) updateCache() {
-	h.methodCache = make([]*method, 0)
-	for k, v := range h.services {
-		tv := reflect.TypeOf(v)
-		vv := reflect.ValueOf(v)
-		tvt := vv.NumMethod()
-		for i := 0; i < tvt; i++ {
-			m := tv.Method(i)
-			mm := &method{
-				name:   m.Name,
-				prefix: k,
-				source: vv.Method(i),
-			}
-			mm.mustParse()
-			h.methodCache = append(h.methodCache, mm)
-		}
-	}
-}
-
+// NewHandler creates a handler with a root service.
 func NewHandler(rootService interface{}) *Handler {
 	h := &Handler{
 		services: map[string]interface{}{"": rootService},
@@ -62,6 +44,17 @@ func NewHandler(rootService interface{}) *Handler {
 	return h
 }
 
+// Routes returns a list of routes registered
+func (h *Handler) Routes() (routes []string) {
+	h.updateCache()
+	for _, m := range h.methodCache {
+		routes = append(routes, h.prefix+m.path)
+	}
+	return
+}
+
+// AddService adds a new service to specified route.
+// You can put {param} in this route.
 func (h *Handler) AddService(path string, svc interface{}) {
 	path = strings.TrimPrefix(path, "/")
 	if !strings.HasSuffix(path, "/") {
@@ -71,8 +64,12 @@ func (h *Handler) AddService(path string, svc interface{}) {
 		panic("service " + path + " already exists")
 	}
 	h.services[path] = svc
+	h.methodCache = nil
 }
 
+// AddWriter adds new writer by content type.
+// The content type is not enforced and will use the first it finds when it doesn't
+// match an Accept/Content-Type header.
 func (h *Handler) AddWriter(contentType string, w ResponseWriter) {
 	if h.writers == nil {
 		h.writers = make(map[string]ResponseWriter)
@@ -80,10 +77,12 @@ func (h *Handler) AddWriter(contentType string, w ResponseWriter) {
 	h.writers[contentType] = w
 }
 
+// Use adds a middleware to your services.
 func (h *Handler) Use(fns ...middleware) {
 	h.middlewares = append(h.middlewares, fns...)
 }
 
+// ServeHTTP calls the method with the matched route.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path[h.prefixLen:]
 	var writer ResponseWriter
@@ -104,30 +103,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writer = wrtr
 	}
 	for _, v := range h.methodCache {
-		var (
-			tm    int
-			match []string
-		)
-		if v.pathRe != nil {
-			match = v.pathRe.FindStringSubmatch(path)
-			tm = len(match)
-		} else if v.path == path {
-			tm = 1
-		}
-		if tm > 0 {
-
-			if tm > 1 {
-				params := make(map[string]string)
-				for i, name := range v.pathRe.SubexpNames() {
-					if i != 0 && name != "" {
-						params[name] = match[i]
-					}
-				}
+		params, ok := v.match(path)
+		if ok {
+			if len(params) > 0 {
 				ctx := r.Context()
 				ctx = context.WithValue(ctx, keyParams, params)
 				r = r.WithContext(ctx)
 			}
 
+			// if there are middleware we wrap it in reverse so it's called
+			// in the order they were added
 			handler := &wrappedHandler{handler: h.createHandler(writer, v)}
 			for i := len(h.middlewares) - 1; i >= 0; i-- {
 				handler = &wrappedHandler{handler: h.middlewares[i](handler)}
@@ -140,6 +125,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writer.Write(w, Error{Status: http.StatusNotFound})
 }
 
+// wrapped handler that calls the actual method and processes the returns
+// the parameter allowed here are *http.Request and http.ResponseWriter
+// the returns can be anything or an error which will be sent to the ResponseWriter
+// a multiple return is passed as slice of interface{}
 func (h *Handler) createHandler(writer ResponseWriter, m *method) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var args []reflect.Value
@@ -164,4 +153,18 @@ func (h *Handler) createHandler(writer ResponseWriter, m *method) http.Handler {
 			writer.Write(w, outs)
 		}
 	})
+}
+
+// Called every time you add a handler to create a cached info about
+// your routes and which methods it points to. This will also look up
+// exported structs to add as a service. You can avoid this by adding
+// route:"-" or to specify specific route add route:"path/{hello}"
+func (h *Handler) updateCache() {
+	if h.methodCache != nil {
+		return
+	}
+
+	for k, v := range h.services {
+		h.methodCache = append(h.methodCache, serviceToMethods(k, v)...)
+	}
 }

@@ -14,6 +14,11 @@ import (
 
 type MyService struct {
 	validate *validator.Validate
+
+	CalcuLator  Calculator
+	Calculator2 Calculator  `route:"-"`
+	Calculator3 *Calculator `route:"calc/{abc}"`
+	NotService  int
 }
 
 var (
@@ -100,7 +105,14 @@ func (m *MyService) StandardHandler(r *http.Request, w http.ResponseWriter) {
 	w.Write([]byte("Hello"))
 }
 
+type Nested struct{}
+
+func (c *Nested) Sample() {
+	log.Println("Sample")
+}
+
 type Calculator struct {
+	Another Nested
 }
 
 func (c *Calculator) Add(r *http.Request) interface{} {
@@ -112,6 +124,10 @@ func (c *Calculator) Add(r *http.Request) interface{} {
 		return err
 	}
 	return req.A + req.B
+}
+
+func (c Calculator) NonPointer() int {
+	return 5
 }
 
 func (c *Calculator) Err(r *http.Request) interface{} {
@@ -150,7 +166,7 @@ func catchAllHandler() http.HandlerFunc {
 }
 
 func main() {
-	my := &MyService{validate: validator.New()}
+	my := &MyService{validate: validator.New(), Calculator3: &Calculator{}}
 	my.validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		tags := []string{"json", "query"}
 		for _, tag := range tags {
@@ -173,6 +189,9 @@ func main() {
 	rs.Handle("/api/v1/", svc)
 	http.Handle("/", catchAllHandler())
 	port := "8090"
-	log.Println("Listening " + port)
+	log.Println("Listening", port, " with services")
+	for _, r := range svc.Routes() {
+		log.Println("->", r)
+	}
 	http.ListenAndServe(":"+port, nil)
 }

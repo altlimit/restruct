@@ -7,10 +7,14 @@ import (
 )
 
 type (
+	// ResponseWriter is called on outputs of your methods.
 	ResponseWriter interface {
 		Write(http.ResponseWriter, interface{})
 	}
 
+	// DefaultWriter uses json.Encoder for output
+	// and manages error handling. Adding Errors mapping can
+	// help with your existing error to a proper Error{}
 	DefaultWriter struct {
 		Errors map[error]Error
 	}
@@ -23,6 +27,9 @@ type (
 	}
 )
 
+// Write implements the DefaultWriter ResponseWriter
+// This writes application/json content type uses status codes 200
+// on valid ones and 500 on uncaught, 400 on malformed json, etc.
 func (dw *DefaultWriter) Write(w http.ResponseWriter, out interface{}) {
 	if out == nil {
 		w.WriteHeader(http.StatusOK)

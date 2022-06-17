@@ -1,11 +1,15 @@
 package restruct
 
-import "testing"
+import (
+	"net/http"
+	"strings"
+	"testing"
+)
 
-func TestMethodPath(t *testing.T) {
+func TestNameToPath(t *testing.T) {
 	table := []struct {
-		method string
-		path   string
+		name string
+		path string
 	}{
 		{"Add", "add"},
 		{"UserAuth", "user-auth"},
@@ -17,11 +21,47 @@ func TestMethodPath(t *testing.T) {
 	}
 
 	for _, v := range table {
-		m := &method{name: v.method}
-		m.mustParse()
-		p := m.path
+		p := nameToPath(v.name)
 		if v.path != p {
 			t.Errorf("got path %s want %s", p, v.path)
+		}
+	}
+}
+
+type serviceA struct {
+	Alpha   serviceB `route:"-"`
+	Bravo   serviceB `route:"my/{tag}"`
+	Charlie *serviceB
+	Delta   *serviceB
+}
+
+type serviceB struct {
+	Delta serviceC
+}
+
+type serviceC struct{}
+
+func (s *serviceA) Hello(r *http.Request)                             {}
+func (s *serviceB) World(w http.ResponseWriter)                       {}
+func (s *serviceC) HelloWorld(r *http.Request, w http.ResponseWriter) {}
+func (s serviceC) Hello_World(w http.ResponseWriter, r *http.Request) {}
+
+func TestServiceToMethods(t *testing.T) {
+	s1 := &serviceA{Charlie: &serviceB{}}
+
+	routes := map[string][]string{
+		"s1/hello":                      {paramRequest},
+		"s1/my/{tag}/world":             {paramResponse},
+		"s1/my/{tag}/delta/hello-world": {paramRequest, paramResponse},
+		"s1/my/{tag}/delta/hello/world": {paramResponse, paramRequest},
+		"s1/charlie/world":              {paramResponse},
+		"s1/charlie/delta/hello-world":  {paramRequest, paramResponse},
+		"s1/charlie/delta/hello/world":  {paramResponse, paramRequest},
+	}
+	methods := serviceToMethods("s1/", s1)
+	for _, m := range methods {
+		if strings.Join(m.params, ",") != strings.Join(routes[m.path], ",") {
+			t.Errorf("route mismatch %s", m.path)
 		}
 	}
 }
