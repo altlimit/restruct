@@ -20,9 +20,14 @@ var (
 )
 
 type (
+	// Router can be used to override method name to specific path,
+	// implement Router interface in your service and return the new mapping:
+	// {"ProductEdit": "product/{pid}"}
+	Router interface {
+		Routes() map[string]string
+	}
+
 	method struct {
-		name    string
-		prefix  string
 		source  reflect.Value
 		path    string
 		pathRe  *regexp.Regexp
@@ -37,13 +42,26 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 	vv := reflect.ValueOf(svc)
 
 	// get methods first
+	var routes map[string]string
+	hasRoutes := false
+	if router, ok := svc.(Router); ok {
+		routes = router.Routes()
+		hasRoutes = true
+	}
 	tvt := vv.NumMethod()
 	for i := 0; i < tvt; i++ {
 		m := tv.Method(i)
+		// Skip Routes method if it implements Router interface{}
+		if hasRoutes && m.Name == "Routes" {
+			continue
+		}
 		mm := &method{
-			name:   m.Name,
-			prefix: prefix,
 			source: vv.Method(i),
+		}
+		if route, ok := routes[m.Name]; ok {
+			mm.path = prefix + strings.Trim(route, "/")
+		} else {
+			mm.path = prefix + nameToPath(m.Name)
 		}
 		mm.mustParse()
 		methods = append(methods, mm)
@@ -117,7 +135,9 @@ func nameToPath(name string) string {
 // Populates method fields, if there's no params it will leave pathRe nil and
 // directly compare path with equality.
 func (m *method) mustParse() {
-	m.path = m.prefix + nameToPath(m.name)
+	if m.path == "" {
+		panic("path not provided")
+	}
 	rePath := m.path
 	params := pathToRe.FindAllString(m.path, -1)
 	if len(params) > 0 {
@@ -145,7 +165,7 @@ func (m *method) mustParse() {
 					continue
 				}
 			}
-			panic("parameter " + in.Name() + " not supported in method " + m.name)
+			panic("parameter " + in.Name() + " not supported in method ")
 		}
 	}
 

@@ -11,6 +11,7 @@ RESTruct is a go rest framework based on structs. The goal of this project is to
 * [Response Writer](#response-writer)
 * [Middleware](#middleware)
 * [Nested Structs](#nested-structs)
+* [Custom Routes](#custom-routes)
 ---
 
 ## Install
@@ -162,6 +163,18 @@ func main() {
 ```
 
 Will generate route: /api/v1/drop and /api/v1/users/send-email
+
+## Custom Routes
+
+You can override default method named routes using Router interface. Implement Router in your service and return a map of method name to custom path.
+
+```go
+func (v *V1) Routes() map[string]string {
+    return map[string]string{"Drop": ".custom/path/{here}"}
+}
+```
+
+This will change the path to /api/v1/.custom/path/{here}.
 
 ## License
 

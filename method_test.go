@@ -45,18 +45,25 @@ func (s *serviceA) Hello(r *http.Request)                             {}
 func (s *serviceB) World(w http.ResponseWriter)                       {}
 func (s *serviceC) HelloWorld(r *http.Request, w http.ResponseWriter) {}
 func (s serviceC) Hello_World(w http.ResponseWriter, r *http.Request) {}
+func (s serviceC) Overwrite()                                         {}
+func (s *serviceC) Routes() map[string]string {
+	return map[string]string{
+		"Overwrite": ".custom/{pid}/_download_",
+	}
+}
 
 func TestServiceToMethods(t *testing.T) {
 	s1 := &serviceA{Charlie: &serviceB{}}
 
 	routes := map[string][]string{
-		"s1/hello":                      {paramRequest},
-		"s1/my/{tag}/world":             {paramResponse},
-		"s1/my/{tag}/delta/hello-world": {paramRequest, paramResponse},
-		"s1/my/{tag}/delta/hello/world": {paramResponse, paramRequest},
-		"s1/charlie/world":              {paramResponse},
-		"s1/charlie/delta/hello-world":  {paramRequest, paramResponse},
-		"s1/charlie/delta/hello/world":  {paramResponse, paramRequest},
+		"s1/hello":                                  {paramRequest},
+		"s1/my/{tag}/world":                         {paramResponse},
+		"s1/my/{tag}/delta/hello-world":             {paramRequest, paramResponse},
+		"s1/my/{tag}/delta/hello/world":             {paramResponse, paramRequest},
+		"s1/charlie/world":                          {paramResponse},
+		"s1/charlie/delta/hello-world":              {paramRequest, paramResponse},
+		"s1/charlie/delta/hello/world":              {paramResponse, paramRequest},
+		"s1/charlie/delta/.custom/{pid}/_download_": {},
 	}
 	methods := serviceToMethods("s1/", s1)
 	for _, m := range methods {
