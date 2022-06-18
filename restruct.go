@@ -4,8 +4,15 @@ import (
 	"net/http"
 )
 
-// Handle adds new service to a route.
-func Handle(pattern string, handler *Handler) {
-	handler.mustCompile(pattern)
-	http.Handle(pattern, handler)
+// Handle registers a struct  or a *Handler for the given pattern in the http.DefaultServeMux.
+func Handle(pattern string, svc interface{}) {
+	h, ok := svc.(*Handler)
+	if ok {
+		h.mustCompile(pattern)
+		http.Handle(pattern, h)
+		return
+	}
+	h = NewHandler(svc)
+	h.mustCompile(pattern)
+	http.Handle(pattern, h)
 }

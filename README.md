@@ -47,7 +47,7 @@ To register the above service:
 
 ```go
 func main() {
-	restruct.Handle("/api/v1/", restruct.NewHandler(&Calculator{}))
+	restruct.Handle("/api/v1/", &Calculator{})
 	http.ListenAndServe(":8080", nil)
 }
 ```
@@ -60,13 +60,18 @@ You can now try to do a post to http://localhost:8080/api/v1/add with body:
 }
 ```
 
-You can add multiple service on the returned handler with different prefix:
+You can create additional service with a different prefix by instanciating a handler then adding it with AddService.
 
 ```go
 h := restruct.NewHandler(&Calculator{})
 h.AddService("/advance/{tag}/", &Calculator{Advance: true})
+restruct.Handle("/api/v1/", h)
 ```
-All your services will now be at /api/v1/advance/{tag}
+All your services will now be at /api/v1/advance/{tag}. You can also register the returned Handler in a third party router but make sure you call WithPrefix(...) on it if it's not a root route.
+
+```go
+http.Handle("/api/v1/", h.WithPrefix("/api/v1/"))
+```
 
 You can have parameters with method using number and access them using `restruct.Params()`:
 
@@ -166,15 +171,15 @@ Will generate route: /api/v1/drop and /api/v1/users/send-email
 
 ## Custom Routes
 
-You can override default method named routes using Router interface. Implement Router in your service and return a map of method name to custom path.
+You can override default method named routes using Router interface. Implement Router in your service and return a map of method name to custom path. You can also add regular expression in your params.
 
 ```go
 func (v *V1) Routes() map[string]string {
-    return map[string]string{"Drop": ".custom/path/{here}"}
+    return map[string]string{"Drop": ".custom/path/{here:.+}"}
 }
 ```
 
-This will change the path to /api/v1/.custom/path/{here}.
+This will change the path to /api/v1/.custom/path/{here}. The param `here` will match anything even with additional nested paths.
 
 ## License
 

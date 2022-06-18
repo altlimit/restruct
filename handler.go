@@ -37,11 +37,19 @@ func (wh *wrappedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wh.handler.ServeHTTP(w, r)
 }
 
-// NewHandler creates a handler with a root service.
-func NewHandler(rootService interface{}) *Handler {
+// NewHandler creates a handler for a given struct.
+func NewHandler(svc interface{}) *Handler {
 	h := &Handler{
-		services: map[string]interface{}{"": rootService},
+		services: map[string]interface{}{"": svc},
 	}
+	h.mustCompile("")
+	return h
+}
+
+// WithPrefix prefixes your service with given path. You can't use parameters here.
+// This is useful if you want to register this handler with another third party router.
+func (h *Handler) WithPrefix(prefix string) *Handler {
+	h.mustCompile(prefix)
 	return h
 }
 

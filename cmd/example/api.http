@@ -43,4 +43,4 @@ POST {{baseUrl}}/calc/y/another/.custom./routed/000
 
 ###
 
-GET http://localhost:8090/abcsd/asdad
+GET http://localhost:8090/products/55

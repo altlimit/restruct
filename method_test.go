@@ -72,3 +72,31 @@ func TestServiceToMethods(t *testing.T) {
 		}
 	}
 }
+
+func TestMethodMustParseMatch(t *testing.T) {
+	table := []struct {
+		path   string
+		test   string
+		match  bool
+		params map[string]string
+	}{
+		{"with/regex/{tag:\\d+}/{hello}", "with/regex/123/world", true, map[string]string{"tag": "123", "hello": "world"}},
+		{"path/{tag}/hello/{0}", "path/Anything/hello/129", true, map[string]string{"tag": "Anything", "0": "129"}},
+		{"catch/{all:.+}", "catch/hello/world/caught/all", true, map[string]string{"all": "hello/world/caught/all"}},
+		{"test/{a}", "test/", false, map[string]string{}},
+	}
+
+	for _, v := range table {
+		m := &method{path: v.path}
+		m.mustParse()
+		params, ok := m.match(v.test)
+		if ok != v.match {
+			t.Errorf("path %s not match %s", v.path, v.test)
+		}
+		for k, p := range v.params {
+			if p != params[k] {
+				t.Errorf("got param %s want %s for %s in %s", p, v.params[k], k, v.path)
+			}
+		}
+	}
+}

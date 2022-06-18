@@ -16,7 +16,7 @@ const (
 )
 
 var (
-	pathToRe = regexp.MustCompile(`({\w+})`)
+	pathToRe = regexp.MustCompile(`{[^}]+}`)
 )
 
 type (
@@ -142,7 +142,11 @@ func (m *method) mustParse() {
 	params := pathToRe.FindAllString(m.path, -1)
 	if len(params) > 0 {
 		for _, m := range params {
-			rePath = strings.ReplaceAll(rePath, m, fmt.Sprintf(`(?P<%s>\w+)`, m[1:len(m)-1]))
+			ex := fmt.Sprintf(`(?P<%s>\w+)`, m[1:len(m)-1])
+			if idx := strings.Index(m, ":"); idx != -1 {
+				ex = fmt.Sprintf(`(?P<%s>%s)`, m[1:idx], m[idx+1:len(m)-1])
+			}
+			rePath = strings.ReplaceAll(rePath, m, ex)
 		}
 		rePath = "^" + rePath + "$"
 		m.pathRe = regexp.MustCompile(rePath)

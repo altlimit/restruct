@@ -182,19 +182,19 @@ func main() {
 		return fld.Name
 	})
 	// wrap your service with NewHandler
-	svc := rs.NewHandler(my)
+	v1 := rs.NewHandler(my)
 	// you can add additional service and prefix it with param or just direct paths
-	svc.AddService("/{tag}/", &Calculator{})
+	v1.AddService("/{tag}/", &Calculator{})
 	// add middleware
-	svc.Use(limitsMiddleware, authMiddleware)
+	v1.Use(limitsMiddleware, authMiddleware)
 	// custom writer
-	svc.AddWriter("application/json", writer)
-	// add this service using Handle
-	rs.Handle("/api/v1/", svc)
+	v1.AddWriter("application/json", writer)
+	// this is same as http.Handle("/api/v1/", v1.WithPrefix("/api/v1/"))
+	rs.Handle("/api/v1/", v1)
 	http.Handle("/", catchAllHandler())
 	port := "8090"
 	log.Println("Listening", port, " with services")
-	for _, r := range svc.Routes() {
+	for _, r := range v1.Routes() {
 		log.Println("->", r)
 	}
 	http.ListenAndServe(":"+port, nil)
