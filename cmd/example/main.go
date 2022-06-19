@@ -156,7 +156,7 @@ func authMiddleware(next http.Handler) http.Handler {
 		log.Println("Auth")
 		if strings.HasSuffix(r.URL.Path, "/standard-handler") && r.Header.Get("Authorization") != "abc" {
 			log.Println("Failed Auth")
-			wr.Write(w, rs.Error{Status: http.StatusUnauthorized})
+			wr.Write(w, r, rs.Error{Status: http.StatusUnauthorized})
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -188,7 +188,7 @@ func main() {
 	// add middleware
 	v1.Use(limitsMiddleware, authMiddleware)
 	// custom writer
-	v1.AddWriter("application/json", writer)
+	v1.Writer = writer
 	// this is same as http.Handle("/api/v1/", v1.WithPrefix("/api/v1/"))
 	rs.Handle("/api/v1/", v1)
 	http.Handle("/", catchAllHandler())

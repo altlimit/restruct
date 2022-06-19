@@ -19,10 +19,12 @@ type (
 	middleware func(http.Handler) http.Handler
 
 	Handler struct {
+		// Writer controls the output of your service, defaults to DefaultWriter
+		Writer ResponseWriter
+
 		prefix            string
 		prefixLen         int
 		services          map[string]interface{}
-		writers           map[string]ResponseWriter
 		methodCache       []*method
 		methodCacheByPath map[string]*method
 		middlewares       []middleware
@@ -79,16 +81,6 @@ func (h *Handler) AddService(path string, svc interface{}) {
 	h.methodCache = nil
 }
 
-// AddWriter adds new writer by content type.
-// The content type is not enforced and will use the first it finds when it doesn't
-// match an Accept/Content-Type header.
-func (h *Handler) AddWriter(contentType string, w ResponseWriter) {
-	if h.writers == nil {
-		h.writers = make(map[string]ResponseWriter)
-	}
-	h.writers[contentType] = w
-}
-
 // Use adds a middleware to your services.
 func (h *Handler) Use(fns ...middleware) {
 	h.middlewares = append(h.middlewares, fns...)
@@ -97,34 +89,32 @@ func (h *Handler) Use(fns ...middleware) {
 // ServeHTTP calls the method with the matched route.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path[h.prefixLen:]
-	var writer ResponseWriter
-	if len(h.writers) == 0 {
-		writer = &DefaultWriter{}
-	} else {
-		contentType := strings.Split(r.Header.Get("Accept"), ";")[0]
-		if contentType == "" {
-			contentType = strings.Split(r.Header.Get("Content-Type"), ";")[0]
-		}
-		wrtr, ok := h.writers[contentType]
-		if !ok {
-			for _, ww := range h.writers {
-				wrtr = ww
-				break
-			}
-		}
-		writer = wrtr
+	if h.Writer == nil {
+		h.Writer = &DefaultWriter{}
 	}
 	// if there are middleware we wrap it in reverse so it's called
 	// in the order they were added
 	chain := func(m *method) *wrappedHandler {
-		handler := &wrappedHandler{handler: h.createHandler(writer, m)}
+		handler := &wrappedHandler{handler: h.createHandler(m)}
 		for i := len(h.middlewares) - 1; i >= 0; i-- {
 			handler = &wrappedHandler{handler: h.middlewares[i](handler)}
 		}
 		return handler
 	}
+	// checks if there's a valid methods and write a proper error if not valid
+	runMethod := func(m *method) {
+		ok := true
+		if m.methods != nil {
+			_, ok = m.methods[r.Method]
+		}
+		if !ok {
+			h.Writer.Write(w, r, Error{Status: http.StatusMethodNotAllowed})
+			return
+		}
+		chain(m).ServeHTTP(w, r)
+	}
 	if v, ok := h.methodCacheByPath[path]; ok {
-		chain(v).ServeHTTP(w, r)
+		runMethod(v)
 		return
 	}
 	for _, v := range h.methodCache {
@@ -135,19 +125,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ctx = context.WithValue(ctx, keyParams, params)
 				r = r.WithContext(ctx)
 			}
-			chain(v).ServeHTTP(w, r)
+			runMethod(v)
 			return
 		}
 	}
 
-	writer.Write(w, Error{Status: http.StatusNotFound})
+	h.Writer.Write(w, r, Error{Status: http.StatusNotFound})
 }
 
 // wrapped handler that calls the actual method and processes the returns
 // the parameter allowed here are *http.Request and http.ResponseWriter
 // the returns can be anything or an error which will be sent to the ResponseWriter
 // a multiple return is passed as slice of interface{}
-func (h *Handler) createHandler(writer ResponseWriter, m *method) http.Handler {
+func (h *Handler) createHandler(m *method) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var args []reflect.Value
 		for _, v := range m.params {
@@ -162,13 +152,13 @@ func (h *Handler) createHandler(writer ResponseWriter, m *method) http.Handler {
 		if ot == 0 {
 			return
 		} else if ot == 1 {
-			writer.Write(w, out[0].Interface())
+			h.Writer.Write(w, r, out[0].Interface())
 		} else {
 			var outs []interface{}
 			for _, o := range out {
 				outs = append(outs, o.Interface())
 			}
-			writer.Write(w, outs)
+			h.Writer.Write(w, r, outs)
 		}
 	})
 }
@@ -180,6 +170,9 @@ func (h *Handler) createHandler(writer ResponseWriter, m *method) http.Handler {
 func (h *Handler) updateCache() {
 	if h.methodCache != nil {
 		return
+	}
+	if h.prefix == "" {
+		h.mustCompile("")
 	}
 	var cache []*method
 	for k, v := range h.services {

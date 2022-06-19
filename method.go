@@ -20,19 +20,13 @@ var (
 )
 
 type (
-	// Router can be used to override method name to specific path,
-	// implement Router interface in your service and return the new mapping:
-	// {"ProductEdit": "product/{pid}"}
-	Router interface {
-		Routes() map[string]string
-	}
-
 	method struct {
 		source  reflect.Value
 		path    string
 		pathRe  *regexp.Regexp
 		params  []string
 		returns []reflect.Kind
+		methods map[string]bool
 	}
 )
 
@@ -42,7 +36,7 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 	vv := reflect.ValueOf(svc)
 
 	// get methods first
-	var routes map[string]string
+	var routes map[string]Route
 	hasRoutes := false
 	if router, ok := svc.(Router); ok {
 		routes = router.Routes()
@@ -59,7 +53,17 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 			source: vv.Method(i),
 		}
 		if route, ok := routes[m.Name]; ok {
-			mm.path = prefix + strings.TrimLeft(route, "/")
+			if route.Path != "" {
+				mm.path = prefix + strings.TrimLeft(route.Path, "/")
+			} else {
+				mm.path = prefix + nameToPath(m.Name)
+			}
+			if len(route.Methods) > 0 {
+				mm.methods = make(map[string]bool)
+				for _, method := range route.Methods {
+					mm.methods[method] = true
+				}
+			}
 		} else {
 			mm.path = prefix + nameToPath(m.Name)
 		}

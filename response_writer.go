@@ -9,7 +9,7 @@ import (
 type (
 	// ResponseWriter is called on outputs of your methods.
 	ResponseWriter interface {
-		Write(http.ResponseWriter, interface{})
+		Write(http.ResponseWriter, *http.Request, interface{})
 	}
 
 	// DefaultWriter uses json.Encoder for output
@@ -30,7 +30,7 @@ type (
 // Write implements the DefaultWriter ResponseWriter
 // This writes application/json content type uses status codes 200
 // on valid ones and 500 on uncaught, 400 on malformed json, etc.
-func (dw *DefaultWriter) Write(w http.ResponseWriter, out interface{}) {
+func (dw *DefaultWriter) Write(w http.ResponseWriter, r *http.Request, out interface{}) {
 	if w == nil {
 		return
 	}
