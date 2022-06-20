@@ -18,6 +18,7 @@ func TestNameToPath(t *testing.T) {
 		{"Products_0", `products/{0}`},
 		{"Products_0_1", `products/{0}/{1}`},
 		{"Products_0_UserX_1", `products/{0}/user-x/{1}`},
+		{"Products15", `products15`},
 	}
 
 	for _, v := range table {
@@ -95,7 +96,7 @@ func TestMethodMustParseMatch(t *testing.T) {
 		}
 		for k, p := range v.params {
 			if p != params[k] {
-				t.Errorf("got param %s want %s for %s in %s", p, v.params[k], k, v.path)
+				t.Errorf("got param %s want %s for %s in %s", params[k], p, k, v.path)
 			}
 		}
 	}

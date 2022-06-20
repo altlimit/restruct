@@ -174,22 +174,28 @@ func (h *Handler) updateCache() {
 	if h.prefix == "" {
 		h.mustCompile("")
 	}
-	var cache []*method
-	for k, v := range h.services {
-		cache = append(cache, serviceToMethods(k, v)...)
-	}
+	var (
+		partsCache []*method
+		reCache    []*method
+	)
 	h.methodCacheByPath = make(map[string]*method)
-	for _, v := range cache {
-		if v.pathRe == nil {
-			_, ok := h.methodCacheByPath[v.path]
-			if ok {
-				panic("duplicate " + v.path + " registered")
+	for k, svc := range h.services {
+		for _, v := range serviceToMethods(k, svc) {
+			if v.pathRe != nil {
+				reCache = append(reCache, v)
+			} else if v.pathParts != nil {
+				partsCache = append(partsCache, v)
+			} else {
+				_, ok := h.methodCacheByPath[v.path]
+				if ok {
+					panic("duplicate " + v.path + " registered")
+				}
+				h.methodCacheByPath[v.path] = v
 			}
-			h.methodCacheByPath[v.path] = v
-		} else {
-			h.methodCache = append(h.methodCache, v)
 		}
 	}
+	h.methodCache = append(h.methodCache, partsCache...)
+	h.methodCache = append(h.methodCache, reCache...)
 }
 
 func (h *Handler) mustCompile(prefix string) {

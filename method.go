@@ -21,12 +21,13 @@ var (
 
 type (
 	method struct {
-		source  reflect.Value
-		path    string
-		pathRe  *regexp.Regexp
-		params  []string
-		returns []reflect.Kind
-		methods map[string]bool
+		source    reflect.Value
+		path      string
+		pathRe    *regexp.Regexp
+		pathParts []string
+		params    []string
+		returns   []reflect.Kind
+		methods   map[string]bool
 	}
 )
 
@@ -145,15 +146,21 @@ func (m *method) mustParse() {
 	rePath := m.path
 	params := pathToRe.FindAllString(m.path, -1)
 	if len(params) > 0 {
+		withRe := false
 		for _, m := range params {
 			ex := fmt.Sprintf(`(?P<%s>\w+)`, m[1:len(m)-1])
 			if idx := strings.Index(m, ":"); idx != -1 {
 				ex = fmt.Sprintf(`(?P<%s>%s)`, m[1:idx], m[idx+1:len(m)-1])
+				withRe = true
 			}
 			rePath = strings.ReplaceAll(rePath, m, ex)
 		}
-		rePath = "^" + rePath + "$"
-		m.pathRe = regexp.MustCompile(rePath)
+		if withRe {
+			rePath = "^" + rePath + "$"
+			m.pathRe = regexp.MustCompile(rePath)
+		} else {
+			m.pathParts = strings.Split(m.path, "/")
+		}
 	}
 
 	if m.source.IsValid() {
@@ -192,8 +199,37 @@ func (m *method) match(path string) (params map[string]string, ok bool) {
 			}
 			ok = true
 		}
-	} else if m.path == path {
-		ok = true
+	} else if m.pathParts != nil {
+		// match by parts
+		idx := -1
+		pt := len(m.pathParts)
+		for {
+			idx++
+			if idx+1 > pt {
+				return
+			}
+			i := strings.Index(path, "/")
+			var part string
+			if i == -1 {
+				part = path[i+1:]
+				if part == "" {
+					return
+				}
+			} else {
+				part = path[:i]
+			}
+			mPart := m.pathParts[idx]
+			if mPart[0] == '{' {
+				params[mPart[1:len(mPart)-1]] = part
+			} else if mPart != part {
+				return
+			}
+			if i == -1 {
+				break
+			}
+			path = path[i+1:]
+		}
+		ok = idx+1 == pt
 	}
 	return
 }
