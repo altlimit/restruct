@@ -13,6 +13,7 @@ type (
 
 const (
 	keyParams ctxKey = "params"
+	keyVals   ctxKey = "vals"
 )
 
 type (

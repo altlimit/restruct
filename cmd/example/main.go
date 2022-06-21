@@ -3,7 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"reflect"
 	"strings"
@@ -66,7 +68,7 @@ func (m *MyService) ViewPdf(r *http.Request) rs.Response {
 // the existing bind and added our validator. A validation error will return
 // {
 //   "data": {
-//     "age": "min",
+//     "price": "min",
 //     "name": "required",
 //     "photos[0].url": "required"
 //   },
@@ -78,12 +80,37 @@ func (m *MyService) Products(r *http.Request) interface{} {
 	}
 	var req struct {
 		Name   string  `json:"name" validate:"required"`
-		Price  int64   `json:"age" validate:"min=1"`
+		Price  int64   `json:"price" validate:"min=1"`
 		Photos []Photo `json:"photos" validate:"required,dive,min=1"`
 	}
 	if err := m.bind(r, &req, http.MethodPost); err != nil {
 		return err
 	}
+	return req
+}
+
+func (m *MyService) FormSample(r *http.Request) interface{} {
+	var req struct {
+		Name  string                `form:"name"`
+		Price int64                 `form:"price"`
+		File  *multipart.FileHeader `form:"file"`
+	}
+	if err := m.bind(r, &req, http.MethodPost); err != nil {
+		return err
+	}
+	if req.File != nil {
+		f, err := req.File.Open()
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		b, err := ioutil.ReadAll(f)
+		if err != nil {
+			return err
+		}
+		return string(b)
+	}
+
 	return req
 }
 
@@ -159,6 +186,8 @@ func authMiddleware(next http.Handler) http.Handler {
 			wr.Write(w, r, rs.Error{Status: http.StatusUnauthorized})
 			return
 		}
+		// use SetValue/GetValue to easily sets and get values from context
+		r = rs.SetValue(r, "loggedIn", true)
 		next.ServeHTTP(w, r)
 	})
 }

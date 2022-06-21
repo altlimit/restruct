@@ -44,3 +44,27 @@ POST {{baseUrl}}/calc/y/another/.custom./routed/000
 ###
 
 GET http://localhost:8090/products/55
+
+###
+
+POST {{baseUrl}}/form-sample
+Content-Type: application/x-www-form-urlencoded
+
+name=hello&price=50
+
+
+###
+
+POST {{baseUrl}}/form-sample
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="name"
+
+A sample file
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="sample.txt"
+Content-Type: text/plain
+
+< ./api.http
+------WebKitFormBoundary7MA4YWxkTrZu0gW--

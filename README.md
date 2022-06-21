@@ -12,6 +12,7 @@ RESTruct is a go rest framework based on structs. The goal of this project is to
 * [Middleware](#middleware)
 * [Nested Structs](#nested-structs)
 * [Custom Routes](#custom-routes)
+* [Utilities](#utilities)
 ---
 
 ## Install
@@ -202,6 +203,38 @@ func (v *V1) Routes() map[string]Route {
     // optional Path to use the default behavior "read-file"
     return map[string]Route{"ReadFile": Route{Methods: []string{http.MethodGet}}}
 }
+```
+
+## Utilities
+
+Available helper utilities for processing requests and response.
+
+```go
+// Adding context values in middleware such as logged in userID
+auth := r.Header.Get("Authorization") == "some-key-or-jwt"
+if userID, ok := UserIDFromAuth(auth); ok {
+    r = restruct.SetValue(r, "userID", userID)
+}
+// then access it from anywhere or a private method for getting your user record
+if userID, ok := restruct.GetValue(r, "userID").(int64); ok {
+    user, err := DB.GetUserByID(ctx, userID)
+    // do something with user
+}
+
+// Bind helps read your json and form requests into a struct, you can add tag "query"
+// to bind query strings at the same time. You can also add tag "form" to bind form posts from
+// urlencoded or multipart. You can also use explicit functions BindQuery or BindForm.
+var loginReq struct {
+    Username string `json:"username"`
+    Password string `json:"password"`
+}
+if err := restruct.Bind(r, &loginReq, http.MethodPost); err != nil {
+    return err
+}
+
+// Reading path parameters with Params /products/{0}
+params := restruct.Params(r)
+productID := params["0"]
 ```
 
 ## License
