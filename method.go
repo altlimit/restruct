@@ -21,6 +21,7 @@ var (
 
 type (
 	method struct {
+		location  string
 		source    reflect.Value
 		path      string
 		pathRe    *regexp.Regexp
@@ -44,6 +45,11 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 		hasRoutes = true
 	}
 	tvt := vv.NumMethod()
+	tvEl := tv
+	if tv.Kind() == reflect.Ptr {
+		tvEl = tv.Elem()
+	}
+	location := tvEl.PkgPath() + "." + tvEl.Name()
 	for i := 0; i < tvt; i++ {
 		m := tv.Method(i)
 		// Skip Routes method if it implements Router interface{}
@@ -51,7 +57,8 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 			continue
 		}
 		mm := &method{
-			source: vv.Method(i),
+			location: location + "." + m.Name,
+			source:   vv.Method(i),
 		}
 		if route, ok := routes[m.Name]; ok {
 			if route.Path != "" {

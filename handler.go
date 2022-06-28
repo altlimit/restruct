@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -60,11 +61,12 @@ func (h *Handler) WithPrefix(prefix string) *Handler {
 func (h *Handler) Routes() (routes []string) {
 	h.updateCache()
 	for _, m := range h.methodCache {
-		routes = append(routes, h.prefix+m.path)
+		routes = append(routes, m.location+": "+h.prefix+m.path)
 	}
-	for p := range h.methodCacheByPath {
-		routes = append(routes, h.prefix+p)
+	for p, m := range h.methodCacheByPath {
+		routes = append(routes, m.location+": "+h.prefix+p)
 	}
+	sort.Strings(routes)
 	return
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -222,9 +223,12 @@ func main() {
 	rs.Handle("/api/v1/", v1)
 	http.Handle("/", catchAllHandler())
 	port := "8090"
-	log.Println("Listening", port, " with services")
+	var buf bytes.Buffer
+	buf.WriteString("Endpoints:")
 	for _, r := range v1.Routes() {
-		log.Println("->", r)
+		buf.WriteString("\n> " + r)
 	}
+	log.Println(buf.String())
+	log.Println("Listening", port)
 	http.ListenAndServe(":"+port, nil)
 }
