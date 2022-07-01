@@ -53,7 +53,7 @@ func Bind(r *http.Request, out interface{}, methods ...string) error {
 		return nil
 	}
 	cType := r.Header.Get("Content-Type")
-	if strings.HasPrefix(cType, "application/json") {
+	if cType == "" || strings.HasPrefix(cType, "application/json") {
 		body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1048576))
 		if err != nil {
 			return fmt.Errorf("Bind: ioutil.ReadAll error %v", err)

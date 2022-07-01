@@ -124,7 +124,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// we check path look up first then see if proper method
 	if vals, ok := h.cache.byPath[path]; ok {
 		for _, m := range vals {
-			if _, ok := m.methods[r.Method]; ok {
+			ok := m.methods == nil
+			if !ok {
+				_, ok = m.methods[r.Method]
+			}
+			if ok {
 				runMethod(m)
 				return
 			}
@@ -143,7 +147,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ctx = context.WithValue(ctx, keyParams, params)
 				r = r.WithContext(ctx)
 			}
-			if _, ok := v.methods[r.Method]; ok {
+			ok := v.methods == nil
+			if !ok {
+				_, ok = v.methods[r.Method]
+			}
+			if ok {
 				runMethod(v)
 				return
 			}
