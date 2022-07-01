@@ -14,5 +14,7 @@ type (
 		Path string
 		// optional methods, will allow all if not present
 		Methods []string
+		// optional middlewares, run specific middleware for this route
+		Middlewares []middleware
 	}
 )

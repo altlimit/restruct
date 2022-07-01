@@ -136,11 +136,18 @@ func (m *MyService) StandardHandler(r *http.Request, w http.ResponseWriter) {
 type Nested struct{}
 
 func (n *Nested) Routes() map[string]rs.Route {
-	return map[string]rs.Route{"Sample": {Path: ".custom./routed/{id}", Methods: []string{http.MethodGet}}}
+	return map[string]rs.Route{
+		"Sample":  {Path: ".custom./routed/{id}", Methods: []string{http.MethodGet}},
+		"Sample2": {Path: ".custom./routed/{id}", Methods: []string{http.MethodPost}},
+	}
 }
 
 func (n *Nested) Sample() {
 	log.Println("Sample")
+}
+
+func (n *Nested) Sample2() {
+	log.Println("Sample2")
 }
 
 type Calculator struct {

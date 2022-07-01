@@ -21,14 +21,15 @@ var (
 
 type (
 	method struct {
-		location  string
-		source    reflect.Value
-		path      string
-		pathRe    *regexp.Regexp
-		pathParts []string
-		params    []string
-		returns   []reflect.Kind
-		methods   map[string]bool
+		location    string
+		source      reflect.Value
+		path        string
+		pathRe      *regexp.Regexp
+		pathParts   []string
+		params      []string
+		returns     []reflect.Kind
+		methods     map[string]bool
+		middlewares []middleware
 	}
 )
 
@@ -61,6 +62,7 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 			source:   vv.Method(i),
 		}
 		if route, ok := routes[m.Name]; ok {
+			mm.middlewares = route.Middlewares
 			if route.Path != "" {
 				mm.path = prefix + strings.TrimLeft(route.Path, "/")
 			} else {

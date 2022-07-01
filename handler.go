@@ -24,18 +24,30 @@ type (
 		// Writer controls the output of your service, defaults to DefaultWriter
 		Writer ResponseWriter
 
-		prefix            string
-		prefixLen         int
-		services          map[string]interface{}
-		methodCache       []*method
-		methodCacheByPath map[string]*method
-		middlewares       []middleware
+		prefix      string
+		prefixLen   int
+		services    map[string]interface{}
+		cache       *methodCache
+		middlewares []middleware
+	}
+
+	methodCache struct {
+		byParams []*method
+		byPath   map[string][]*method
 	}
 
 	wrappedHandler struct {
 		handler http.Handler
 	}
 )
+
+func (mc *methodCache) methods() (methods []*method) {
+	methods = append(methods, mc.byParams...)
+	for _, m := range mc.byPath {
+		methods = append(methods, m...)
+	}
+	return
+}
 
 func (wh *wrappedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wh.handler.ServeHTTP(w, r)
@@ -60,11 +72,12 @@ func (h *Handler) WithPrefix(prefix string) *Handler {
 // Routes returns a list of routes registered
 func (h *Handler) Routes() (routes []string) {
 	h.updateCache()
-	for _, m := range h.methodCache {
-		routes = append(routes, m.location+": "+h.prefix+m.path)
-	}
-	for p, m := range h.methodCacheByPath {
-		routes = append(routes, m.location+": "+h.prefix+p)
+	for _, m := range h.cache.methods() {
+		var methods []string
+		for k := range m.methods {
+			methods = append(methods, k)
+		}
+		routes = append(routes, m.location+":"+strings.Join(methods, ",")+" "+h.prefix+m.path)
 	}
 	sort.Strings(routes)
 	return
@@ -81,7 +94,7 @@ func (h *Handler) AddService(path string, svc interface{}) {
 		panic("service " + path + " already exists")
 	}
 	h.services[path] = svc
-	h.methodCache = nil
+	h.cache = nil
 }
 
 // Use adds a middleware to your services.
@@ -99,28 +112,30 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// in the order they were added
 	chain := func(m *method) *wrappedHandler {
 		handler := &wrappedHandler{handler: h.createHandler(m)}
-		for i := len(h.middlewares) - 1; i >= 0; i-- {
+		middlewares := append(h.middlewares, m.middlewares...)
+		for i := len(middlewares) - 1; i >= 0; i-- {
 			handler = &wrappedHandler{handler: h.middlewares[i](handler)}
 		}
 		return handler
 	}
-	// checks if there's a valid methods and write a proper error if not valid
 	runMethod := func(m *method) {
-		ok := true
-		if m.methods != nil {
-			_, ok = m.methods[r.Method]
-		}
-		if !ok {
-			h.Writer.Write(w, r, Error{Status: http.StatusMethodNotAllowed})
-			return
-		}
 		chain(m).ServeHTTP(w, r)
 	}
-	if v, ok := h.methodCacheByPath[path]; ok {
-		runMethod(v)
+	// we check path look up first then see if proper method
+	if vals, ok := h.cache.byPath[path]; ok {
+		for _, m := range vals {
+			if _, ok := m.methods[r.Method]; ok {
+				runMethod(m)
+				return
+			}
+		}
+		h.Writer.Write(w, r, Error{Status: http.StatusMethodNotAllowed})
 		return
 	}
-	for _, v := range h.methodCache {
+	// we do heavier look up such as path parts or regex then if any match
+	// we set path found but still need to match method for proper error return
+	status := http.StatusNotFound
+	for _, v := range h.cache.byParams {
 		params, ok := v.match(path)
 		if ok {
 			if len(params) > 0 {
@@ -128,12 +143,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ctx = context.WithValue(ctx, keyParams, params)
 				r = r.WithContext(ctx)
 			}
-			runMethod(v)
-			return
+			if _, ok := v.methods[r.Method]; ok {
+				runMethod(v)
+				return
+			}
+			status = http.StatusMethodNotAllowed
 		}
 	}
-
-	h.Writer.Write(w, r, Error{Status: http.StatusNotFound})
+	h.Writer.Write(w, r, Error{Status: status})
 }
 
 // wrapped handler that calls the actual method and processes the returns
@@ -171,34 +188,24 @@ func (h *Handler) createHandler(m *method) http.Handler {
 // exported structs to add as a service. You can avoid this by adding
 // route:"-" or to specify specific route add route:"path/{hello}"
 func (h *Handler) updateCache() {
-	if h.methodCache != nil {
+	if h.cache != nil {
 		return
 	}
 	if h.prefix == "" {
 		h.mustCompile("")
 	}
-	var (
-		partsCache []*method
-		reCache    []*method
-	)
-	h.methodCacheByPath = make(map[string]*method)
+	h.cache = &methodCache{
+		byPath: make(map[string][]*method),
+	}
 	for k, svc := range h.services {
 		for _, v := range serviceToMethods(k, svc) {
-			if v.pathRe != nil {
-				reCache = append(reCache, v)
-			} else if v.pathParts != nil {
-				partsCache = append(partsCache, v)
+			if v.pathRe != nil || v.pathParts != nil {
+				h.cache.byParams = append(h.cache.byParams, v)
 			} else {
-				_, ok := h.methodCacheByPath[v.path]
-				if ok {
-					panic("duplicate " + v.path + " registered")
-				}
-				h.methodCacheByPath[v.path] = v
+				h.cache.byPath[v.path] = append(h.cache.byPath[v.path], v)
 			}
 		}
 	}
-	h.methodCache = append(h.methodCache, partsCache...)
-	h.methodCache = append(h.methodCache, reCache...)
 }
 
 func (h *Handler) mustCompile(prefix string) {

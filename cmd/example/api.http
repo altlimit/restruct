@@ -38,7 +38,7 @@ GET {{baseUrl}}/abc/err
 
 ###
 
-POST {{baseUrl}}/calc/y/another/.custom./routed/000
+GET {{baseUrl}}/calc/y/another/.custom./routed/000
 
 
 ###
