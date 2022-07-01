@@ -19,6 +19,7 @@ type (
 		Errors map[error]Error
 	}
 
+	// Response is used by DefaultWriter for custom response
 	Response struct {
 		Status      int
 		Headers     map[string]string

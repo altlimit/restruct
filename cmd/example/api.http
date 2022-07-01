@@ -15,6 +15,12 @@ GET {{baseUrl}}/products/123Hello
 
 ###
 
+POST {{baseUrl}}/login
+
+{"username": "hello","password":"world"}
+
+###
+
 GET {{baseUrl}}/view-pdf
 
 ###

@@ -15,14 +15,21 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-type MyService struct {
-	validate *validator.Validate
+type (
+	MyService struct {
+		validate *validator.Validate
 
-	CalcuLator  Calculator
-	Calculator2 Calculator  `route:"-"`
-	Calculator3 *Calculator `route:"calc/{abc}"`
-	NotService  int
-}
+		CalcuLator  Calculator
+		Calculator2 Calculator  `route:"-"`
+		Calculator3 *Calculator `route:"calc/{abc}"`
+		NotService  int
+	}
+
+	LoginRequest struct {
+		Username string `json:"username" validate:"required"`
+		Password string `json:"password" validate:"required"`
+	}
+)
 
 var (
 	errBadRequest = errors.New("bad request")
@@ -53,6 +60,10 @@ func (m *MyService) bind(r *http.Request, src interface{}, methods ...string) er
 	}
 
 	return nil
+}
+
+func (m *MyService) Login(login *LoginRequest) string {
+	return login.Username
 }
 
 // Direct response, you would usually have interface{} returns so if you get an error you will
@@ -220,6 +231,7 @@ func main() {
 	})
 	// wrap your service with NewHandler
 	v1 := rs.NewHandler(my)
+	v1.Reader = &rs.DefaultReader{Bind: my.bind}
 	// you can add additional service and prefix it with param or just direct paths
 	v1.AddService("/{tag}/", &Calculator{})
 	// add middleware

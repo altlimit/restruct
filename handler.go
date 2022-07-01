@@ -2,6 +2,7 @@ package restruct
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"reflect"
 	"sort"
@@ -10,6 +11,10 @@ import (
 
 type (
 	ctxKey string
+)
+
+var (
+	ErrReaderReturnLen = errors.New("reader args len does not match")
 )
 
 const (
@@ -23,6 +28,8 @@ type (
 	Handler struct {
 		// Writer controls the output of your service, defaults to DefaultWriter
 		Writer ResponseWriter
+		// Reader controls the input of your service, defaults to DefaultReader
+		Reader RequestReader
 
 		prefix      string
 		prefixLen   int
@@ -108,6 +115,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.Writer == nil {
 		h.Writer = &DefaultWriter{}
 	}
+	if h.Reader == nil {
+		h.Reader = &DefaultReader{Bind: Bind}
+	}
 	// if there are middleware we wrap it in reverse so it's called
 	// in the order they were added
 	chain := func(m *method) *wrappedHandler {
@@ -167,12 +177,37 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // a multiple return is passed as slice of interface{}
 func (h *Handler) createHandler(m *method) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var args []reflect.Value
-		for _, v := range m.params {
-			if v == paramRequest {
-				args = append(args, reflect.ValueOf(r))
-			} else if v == paramResponse {
-				args = append(args, reflect.ValueOf(w))
+		var (
+			argTypes   []reflect.Type
+			argIndexes []int
+		)
+		args := make([]reflect.Value, len(m.params))
+		for k, v := range m.params {
+			switch v {
+			case typeHttpRequest:
+				args[k] = reflect.ValueOf(r)
+			case typeHttpWriter:
+				args[k] = reflect.ValueOf(w)
+			case typeContext:
+				args[k] = reflect.ValueOf(r.Context())
+			default:
+				argTypes = append(argTypes, v)
+				argIndexes = append(argIndexes, k)
+			}
+		}
+		// has unknown types in parameters, use RequestReader
+		if len(argIndexes) > 0 {
+			typeArgs, err := h.Reader.Read(r, argTypes)
+			if err != nil {
+				h.Writer.Write(w, r, err)
+				return
+			}
+			if len(typeArgs) != len(argIndexes) {
+				h.Writer.Write(w, r, Error{Err: ErrReaderReturnLen})
+				return
+			}
+			for k, i := range argIndexes {
+				args[i] = typeArgs[k]
 			}
 		}
 		out := m.source.Call(args)

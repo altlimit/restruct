@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
@@ -54,7 +53,7 @@ func Bind(r *http.Request, out interface{}, methods ...string) error {
 	}
 	cType := r.Header.Get("Content-Type")
 	if cType == "" || strings.HasPrefix(cType, "application/json") {
-		body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1048576))
+		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return fmt.Errorf("Bind: ioutil.ReadAll error %v", err)
 		}
