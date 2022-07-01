@@ -9,6 +9,7 @@ RESTruct is a go rest framework based on structs. The goal of this project is to
 * [Examples](#examples)
 * [Route By Methods](#route-by-methods)
 * [Response Writer](#response-writer)
+* [Request Reader](#request-reader)
 * [Middleware](#middleware)
 * [Nested Structs](#nested-structs)
 * [Custom Routes](#custom-routes)
@@ -120,9 +121,49 @@ h := restruct.NewHandler(&Calculator{})
 h.Writer = &TextWriter{}
 ```
 
+## Request Reader
+
+A handler can have any or no parameters, but the default parameters that doesn't go through request reader are: context.Context, *http.Request and http.ResponseWriter.
+
+```go
+// use form for urlencoded post
+type login struct {
+    Username string `json:"username" form:"username"`
+    Password string `json:"password" from:"password"`
+}
+
+func (c *Calculator) Login(l *login) interface{} {
+    log.Println("Login", l.Username, l.Password)
+    return "OK"
+}
+```
+
+This uses the DefaultReader which by default can unmarshal single struct and use default bind, you can use your own Bind with `DefaultReader{Bind:yourBinder}` if you want to add validation libraries. The Bind reads the body with json.Encoder, or form values. If you have multiple paramters you will need to send a json array body.
+
+```json
+[
+    "FirstParam",
+    2,
+    {"third":"param"}
+]
+```
+
+This is the default behaviour of DefaultReader. You can implement RequestReader interface which will allow you to control your own parameter parsing.
+
+```go
+type CustomReader struct {}
+func (cr *CustomReader) Read(r *http.Request, args []reflect.Type) (vals []reflect.Value, err error) {
+    // args are the paramter types in order of your handler
+    // you must return equal number of vals to args.
+    // You'll only get types that is not *http.Request, http.ResponseWriter, context.Context
+    // You can return Error{} type here to return ResponseWriter errors/response and wrap your errors inside Error{Err:...}
+    return
+}
+
+```
 ## Middleware
 
-Uses standard middleware and add by `handler.Use(...)`
+Uses standard middleware and add by `handler.Use(...)` or you can add it under `Router` interface{}.
 
 ```go
 func auth(next http.Handler) http.Handler {

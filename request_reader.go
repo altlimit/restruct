@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"reflect"
 )
@@ -19,7 +18,9 @@ type (
 
 	// DefaultReader processes request with json.Encoder, urlencoded form and multipart for structs
 	// if it's just basic types it will be read from body as array such as [1, "hello", false]
+	// you can overwrite bind to apply validation library, etc
 	DefaultReader struct {
+		Bind func(*http.Request, interface{}, ...string) error
 	}
 )
 
@@ -41,7 +42,7 @@ func (dr *DefaultReader) Read(r *http.Request, args []reflect.Type) (vals []refl
 			ptr = true
 		}
 		val := reflect.New(arg)
-		err = Bind(r, val.Interface())
+		err = dr.Bind(r, val.Interface())
 		if err != nil {
 			return
 		}
@@ -88,8 +89,11 @@ func (dr *DefaultReader) Read(r *http.Request, args []reflect.Type) (vals []refl
 			ptr = true
 			t = t.Elem()
 		}
-		if t.Kind() == reflect.Struct && val.Kind() == reflect.Map {
-			// if it's a map and source is struct we can unmarshal back to map
+		tk := t.Kind()
+		vk := val.Kind()
+		// target type struct, slice, map will just be re-marshalled
+		// otherwise convert numbers, since unmarshal uses float64
+		if tk == reflect.Struct || tk == reflect.Slice || tk == reflect.Map {
 			var b []byte
 			b, err = json.Marshal(val.Interface())
 			if err != nil {
@@ -105,14 +109,13 @@ func (dr *DefaultReader) Read(r *http.Request, args []reflect.Type) (vals []refl
 			if !ptr {
 				val = val.Elem()
 			}
-		} else if t.Kind() == reflect.Int64 && val.Kind() == reflect.Float64 {
+		} else if (tk == reflect.Int64 || tk == reflect.Int) &&
+			vk == reflect.Float64 {
 			num := int64(val.Float())
-			val = reflect.New(t)
+			val = reflect.New(t).Elem()
 			val.SetInt(num)
-			val = val.Elem()
 		} else {
-			log.Println("Kind", val.Kind(), t.Kind() == reflect.Struct)
-			if val.Kind() != t.Kind() {
+			if val.Kind() != tk {
 				badRequest("DefaultReader.Read: param %d must be %s", i+1, t)
 				return
 			}

@@ -116,7 +116,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.Writer = &DefaultWriter{}
 	}
 	if h.Reader == nil {
-		h.Reader = &DefaultReader{}
+		h.Reader = &DefaultReader{Bind: Bind}
 	}
 	// if there are middleware we wrap it in reverse so it's called
 	// in the order they were added
