@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -16,14 +17,16 @@ type (
 	}
 )
 
-func (ss *sampleService) Add(r *http.Request) int64 {
-	return 5
+func (ss *sampleService) Add(r *addRequest, x int64) int64 {
+	return r.A + r.B
 }
 
 func TestDefaultReaderRead(t *testing.T) {
 	h := NewHandler(&sampleService{})
 
-	req := httptest.NewRequest(http.MethodGet, "/add", nil)
+	bod := `{"a":4,"b":3}`
+	bod = `[{}, 500]`
+	req := httptest.NewRequest(http.MethodPost, "/add", strings.NewReader(bod))
 	w := httptest.NewRecorder()
 
 	h.ServeHTTP(w, req)

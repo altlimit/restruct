@@ -2,6 +2,7 @@ package restruct
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -10,13 +11,12 @@ import (
 	"unicode"
 )
 
-const (
-	paramRequest  = "request"
-	paramResponse = "response"
-)
-
 var (
 	pathToRe = regexp.MustCompile(`{[^}]+}`)
+
+	typeHttpRequest = reflect.TypeOf(&http.Request{})
+	typeHttpWriter  = reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
+	typeContext     = reflect.TypeOf((*context.Context)(nil)).Elem()
 )
 
 type (
@@ -26,7 +26,7 @@ type (
 		path        string
 		pathRe      *regexp.Regexp
 		pathParts   []string
-		params      []string
+		params      []reflect.Type
 		returns     []reflect.Kind
 		methods     map[string]bool
 		middlewares []middleware
@@ -178,21 +178,9 @@ func (m *method) mustParse() {
 			m.returns = append(m.returns, mt.Out(i).Kind())
 		}
 		for i := 0; i < mt.NumIn(); i++ {
-			in := mt.In(i)
-			if in == reflect.TypeOf(&http.Request{}) {
-				m.params = append(m.params, paramRequest)
-				continue
-			} else {
-				rwType := reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
-				if in.Implements(rwType) {
-					m.params = append(m.params, paramResponse)
-					continue
-				}
-			}
-			panic("parameter " + in.Name() + " not supported in method ")
+			m.params = append(m.params, mt.In(i))
 		}
 	}
-
 }
 
 // Checks path against method if it's valid, this accepts a stripped path and not a full path

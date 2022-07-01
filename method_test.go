@@ -2,7 +2,7 @@ package restruct
 
 import (
 	"net/http"
-	"strings"
+	"reflect"
 	"testing"
 )
 
@@ -56,20 +56,22 @@ func (s *serviceC) Routes() map[string]string {
 func TestServiceToMethods(t *testing.T) {
 	s1 := &serviceA{Charlie: &serviceB{}}
 
-	routes := map[string][]string{
-		"s1/hello":                                  {paramRequest},
-		"s1/my/{tag}/world":                         {paramResponse},
-		"s1/my/{tag}/delta/hello-world":             {paramRequest, paramResponse},
-		"s1/my/{tag}/delta/hello/world":             {paramResponse, paramRequest},
-		"s1/charlie/world":                          {paramResponse},
-		"s1/charlie/delta/hello-world":              {paramRequest, paramResponse},
-		"s1/charlie/delta/hello/world":              {paramResponse, paramRequest},
+	routes := map[string][]reflect.Type{
+		"s1/hello":                                  {typeHttpRequest},
+		"s1/my/{tag}/world":                         {typeHttpWriter},
+		"s1/my/{tag}/delta/hello-world":             {typeHttpRequest, typeHttpWriter},
+		"s1/my/{tag}/delta/hello/world":             {typeHttpWriter, typeHttpRequest},
+		"s1/charlie/world":                          {typeHttpWriter},
+		"s1/charlie/delta/hello-world":              {typeHttpRequest, typeHttpWriter},
+		"s1/charlie/delta/hello/world":              {typeHttpWriter, typeHttpRequest},
 		"s1/charlie/delta/.custom/{pid}/_download_": {},
 	}
 	methods := serviceToMethods("s1/", s1)
 	for _, m := range methods {
-		if strings.Join(m.params, ",") != strings.Join(routes[m.path], ",") {
-			t.Errorf("route mismatch %s", m.path)
+		for i, v := range m.params {
+			if v != routes[m.path][i] {
+				t.Errorf("route mismatch %s", m.path)
+			}
 		}
 	}
 }
