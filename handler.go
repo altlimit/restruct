@@ -23,6 +23,8 @@ type (
 	Handler struct {
 		// Writer controls the output of your service, defaults to DefaultWriter
 		Writer ResponseWriter
+		// Reader controls the input of your service, defaults to DefaultReader
+		Reader RequestReader
 
 		prefix      string
 		prefixLen   int
@@ -107,6 +109,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path[h.prefixLen:]
 	if h.Writer == nil {
 		h.Writer = &DefaultWriter{}
+	}
+	if h.Reader == nil {
+		h.Reader = &DefaultReader{}
 	}
 	// if there are middleware we wrap it in reverse so it's called
 	// in the order they were added
