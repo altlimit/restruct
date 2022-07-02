@@ -44,8 +44,9 @@ GET {{baseUrl}}/abc/err
 
 ###
 
-GET {{baseUrl}}/calc/y/another/.custom./routed/000
+POST {{baseUrl}}/calc/y/another/.custom./routed/000
 
+{"B": "hello"}
 
 ###
 

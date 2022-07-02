@@ -5,11 +5,13 @@ type (
 	// implement Router interface in your service and return the new mapping:
 	// {"ProductEdit": Route{Path: "product/{pid}"}}
 	Router interface {
-		Routes() map[string]Route
+		Routes() []Route
 	}
 
 	// Route for doing overrides with router interface and method restrictions.
 	Route struct {
+		// Handler is the method name you want to use for this route
+		Handler string
 		// optional path, will use default behaviour if not present
 		Path string
 		// optional methods, will allow all if not present
