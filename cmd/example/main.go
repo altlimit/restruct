@@ -157,8 +157,10 @@ func (n *Nested) Sample() {
 	log.Println("Sample")
 }
 
-func (n *Nested) Sample2() {
-	log.Println("Sample2")
+func (n *Nested) Sample2(a struct {
+	B string
+}) {
+	log.Println("Sample2", a.B)
 }
 
 type Calculator struct {
