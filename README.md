@@ -75,7 +75,7 @@ func main() {
 
 We have registered the `Calculator` struct here as our service and we should now have available endpoints which you can send json request and response to.
 
-```json
+```js
 // POST http://localhost:8080/api/v1/add
 {
     "a": 10,
