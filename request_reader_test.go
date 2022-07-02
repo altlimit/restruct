@@ -66,5 +66,4 @@ func TestDefaultReaderRead(t *testing.T) {
 	if strings.TrimRight(string(data), "\n") != "7" {
 		t.Errorf("wanted 7 got %s", data)
 	}
-	t.Errorf("asd")
 }

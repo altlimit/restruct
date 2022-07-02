@@ -32,7 +32,7 @@ type (
 
 // Write implements the DefaultWriter ResponseWriter
 // this handles if your return is (int, error) or any last error it would write the error if it's not nil
-// otherwise return the other returns as output, if its more than 2 it will be slice of interface{} exclduing error
+// otherwise return the other returns as output, if its more than 2 it will be slice of interface{} excluding error
 func (dw *DefaultWriter) Write(w http.ResponseWriter, r *http.Request, types []reflect.Type, vals []reflect.Value) {
 	// no returns are not sent here so we just check if 1 or more
 	lt := len(types)
