@@ -223,3 +223,14 @@ func GetValue(r *http.Request, key string) interface{} {
 	}
 	return nil
 }
+
+func refTypes(types ...reflect.Type) []reflect.Type {
+	return types
+}
+
+func refVals(vals ...interface{}) (values []reflect.Value) {
+	for _, v := range vals {
+		values = append(values, reflect.ValueOf(v))
+	}
+	return
+}

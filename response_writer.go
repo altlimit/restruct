@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"reflect"
 )
 
 type (
 	// ResponseWriter is called on outputs of your methods.
+	// slice of reflect.Type & Value is the types and returned values
 	ResponseWriter interface {
-		Write(http.ResponseWriter, *http.Request, interface{})
+		Write(http.ResponseWriter, *http.Request, []reflect.Type, []reflect.Value)
 	}
 
 	// DefaultWriter uses json.Encoder for output
@@ -29,9 +31,41 @@ type (
 )
 
 // Write implements the DefaultWriter ResponseWriter
+// this handles if your return is (int, error) or any last error it would write the error if it's not nil
+// otherwise return the other returns as output, if its more than 2 it will be slice of interface{} exclduing error
+func (dw *DefaultWriter) Write(w http.ResponseWriter, r *http.Request, types []reflect.Type, vals []reflect.Value) {
+	// no returns are not sent here so we just check if 1 or more
+	lt := len(types)
+	if lt == 1 {
+		dw.WriteJSON(w, r, vals[0].Interface())
+		return
+	}
+	var out interface{}
+	defer func() {
+		dw.WriteJSON(w, r, out)
+	}()
+	if types[lt-1] == typeError {
+		errVal := vals[lt-1]
+		if !errVal.IsNil() {
+			out = errVal.Interface()
+			return
+		}
+		vals = vals[:lt-1]
+	}
+	if len(vals) == 1 {
+		dw.WriteJSON(w, r, vals[0].Interface())
+		return
+	}
+	var args []interface{}
+	for _, v := range vals {
+		args = append(args, v.Interface())
+	}
+	out = args
+}
+
 // This writes application/json content type uses status codes 200
 // on valid ones and 500 on uncaught, 400 on malformed json, etc.
-func (dw *DefaultWriter) Write(w http.ResponseWriter, r *http.Request, out interface{}) {
+func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, r *http.Request, out interface{}) {
 	if w == nil {
 		return
 	}

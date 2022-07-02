@@ -143,7 +143,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		h.Writer.Write(w, r, Error{Status: http.StatusMethodNotAllowed})
+		h.Writer.Write(w, r, refTypes(typeError), refVals(Error{Status: http.StatusMethodNotAllowed}))
 		return
 	}
 	// we do heavier look up such as path parts or regex then if any match
@@ -168,7 +168,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusMethodNotAllowed
 		}
 	}
-	h.Writer.Write(w, r, Error{Status: status})
+	h.Writer.Write(w, r, refTypes(typeError), refVals(Error{Status: status}))
 }
 
 // wrapped handler that calls the actual method and processes the returns
@@ -199,11 +199,11 @@ func (h *Handler) createHandler(m *method) http.Handler {
 		if len(argIndexes) > 0 {
 			typeArgs, err := h.Reader.Read(r, argTypes)
 			if err != nil {
-				h.Writer.Write(w, r, err)
+				h.Writer.Write(w, r, refTypes(typeError), refVals(err))
 				return
 			}
 			if len(typeArgs) != len(argIndexes) {
-				h.Writer.Write(w, r, Error{Err: ErrReaderReturnLen})
+				h.Writer.Write(w, r, refTypes(typeError), refVals(Error{Err: ErrReaderReturnLen}))
 				return
 			}
 			for k, i := range argIndexes {
@@ -214,15 +214,8 @@ func (h *Handler) createHandler(m *method) http.Handler {
 		ot := len(out)
 		if ot == 0 {
 			return
-		} else if ot == 1 {
-			h.Writer.Write(w, r, out[0].Interface())
-		} else {
-			var outs []interface{}
-			for _, o := range out {
-				outs = append(outs, o.Interface())
-			}
-			h.Writer.Write(w, r, outs)
 		}
+		h.Writer.Write(w, r, m.returns, out)
 	})
 }
 

@@ -27,8 +27,8 @@ func (ss *sampleService) Add(ctx context.Context, r *addRequest, x map[string]in
 	return total + r.A + r.B + int64(y) + int64(z)
 }
 
-func (ss *sampleService) Add2(ctx context.Context, r *addRequest) int64 {
-	return r.A + r.B
+func (ss *sampleService) Add2(ctx context.Context, r *addRequest) (int64, error) {
+	return r.A + r.B, nil
 }
 
 func TestDefaultReaderRead(t *testing.T) {
@@ -66,4 +66,5 @@ func TestDefaultReaderRead(t *testing.T) {
 	if strings.TrimRight(string(data), "\n") != "7" {
 		t.Errorf("wanted 7 got %s", data)
 	}
+	t.Errorf("asd")
 }

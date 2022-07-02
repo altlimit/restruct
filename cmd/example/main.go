@@ -146,10 +146,10 @@ func (m *MyService) StandardHandler(r *http.Request, w http.ResponseWriter) {
 
 type Nested struct{}
 
-func (n *Nested) Routes() map[string]rs.Route {
-	return map[string]rs.Route{
-		"Sample":  {Path: ".custom./routed/{id}", Methods: []string{http.MethodGet}},
-		"Sample2": {Path: ".custom./routed/{id}", Methods: []string{http.MethodPost}},
+func (n *Nested) Routes() []rs.Route {
+	return []rs.Route{
+		{Handler: "Sample", Path: ".custom./routed/{id}", Methods: []string{http.MethodGet}},
+		{Handler: "Sample2", Path: ".custom./routed/{id}", Methods: []string{http.MethodPost}},
 	}
 }
 
@@ -202,7 +202,7 @@ func authMiddleware(next http.Handler) http.Handler {
 		log.Println("Auth")
 		if strings.HasSuffix(r.URL.Path, "/standard-handler") && r.Header.Get("Authorization") != "abc" {
 			log.Println("Failed Auth")
-			wr.Write(w, r, rs.Error{Status: http.StatusUnauthorized})
+			wr.WriteJSON(w, r, rs.Error{Status: http.StatusUnauthorized})
 			return
 		}
 		// use SetValue/GetValue to easily sets and get values from context

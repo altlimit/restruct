@@ -17,6 +17,7 @@ var (
 	typeHttpRequest = reflect.TypeOf(&http.Request{})
 	typeHttpWriter  = reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
 	typeContext     = reflect.TypeOf((*context.Context)(nil)).Elem()
+	typeError       = reflect.TypeOf((*error)(nil)).Elem()
 )
 
 type (
@@ -27,7 +28,7 @@ type (
 		pathRe      *regexp.Regexp
 		pathParts   []string
 		params      []reflect.Type
-		returns     []reflect.Kind
+		returns     []reflect.Type
 		methods     map[string]bool
 		middlewares []middleware
 	}
@@ -39,7 +40,7 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 	vv := reflect.ValueOf(svc)
 
 	// get methods first
-	var routes map[string]Route
+	var routes []Route
 	hasRoutes := false
 	if router, ok := svc.(Router); ok {
 		routes = router.Routes()
@@ -61,18 +62,34 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 			location: location + "." + m.Name,
 			source:   vv.Method(i),
 		}
-		if route, ok := routes[m.Name]; ok {
-			mm.middlewares = route.Middlewares
-			if route.Path != "" {
-				mm.path = prefix + strings.TrimLeft(route.Path, "/")
-			} else {
-				mm.path = prefix + nameToPath(m.Name)
-			}
-			if len(route.Methods) > 0 {
-				mm.methods = make(map[string]bool)
-				for _, method := range route.Methods {
-					mm.methods[method] = true
+		if len(routes) > 0 {
+			foundRoute := false
+			for _, route := range routes {
+				if route.Handler != m.Name {
+					continue
 				}
+				mr := &method{
+					location: mm.location,
+					source:   mm.source,
+				}
+				foundRoute = true
+				mr.middlewares = route.Middlewares
+				if route.Path != "" {
+					mr.path = prefix + strings.TrimLeft(route.Path, "/")
+				} else {
+					mr.path = prefix + nameToPath(m.Name)
+				}
+				if len(route.Methods) > 0 {
+					mr.methods = make(map[string]bool)
+					for _, method := range route.Methods {
+						mr.methods[method] = true
+					}
+				}
+				mr.mustParse()
+				methods = append(methods, mr)
+			}
+			if foundRoute {
+				continue
 			}
 		} else {
 			mm.path = prefix + nameToPath(m.Name)
@@ -175,7 +192,7 @@ func (m *method) mustParse() {
 	if m.source.IsValid() {
 		mt := m.source.Type()
 		for i := 0; i < mt.NumOut(); i++ {
-			m.returns = append(m.returns, mt.Out(i).Kind())
+			m.returns = append(m.returns, mt.Out(i))
 		}
 		for i := 0; i < mt.NumIn(); i++ {
 			m.params = append(m.params, mt.In(i))
