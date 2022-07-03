@@ -35,9 +35,9 @@ func (ts *testService4) Routes() map[string]Route {
 // goarch: amd64
 // pkg: github.com/altlimit/restruct
 // cpu: Intel(R) Core(TM) i7-3770K CPU @ 3.50GHz
-// BenchmarkHandlerStatic-8   	13060087	        95.04 ns/op	      64 B/op	       1 allocs/op
+// BenchmarkHandlerStatic-8   	 2548689	       425.5 ns/op	      72 B/op	       4 allocs/op
 // PASS
-// ok  	github.com/altlimit/restruct	1.342s
+// ok  	github.com/altlimit/restruct	1.569s
 func BenchmarkHandlerStatic(b *testing.B) {
 	h := NewHandler(&testService{})
 	h.mustCompile("/api/v1")
@@ -51,9 +51,9 @@ func BenchmarkHandlerStatic(b *testing.B) {
 // goarch: amd64
 // pkg: github.com/altlimit/restruct
 // cpu: Intel(R) Core(TM) i7-3770K CPU @ 3.50GHz
-// BenchmarkHandlerWithParam-8   	 2023248	       574.1 ns/op	     848 B/op	       6 allocs/op
+// BenchmarkHandlerWithParam-8   	 1180539	       983.0 ns/op	     856 B/op	       9 allocs/op
 // PASS
-// ok  	github.com/altlimit/restruct	1.770s
+// ok  	github.com/altlimit/restruct	2.055s
 func BenchmarkHandlerWithParam(b *testing.B) {
 	h := NewHandler(&testService2{})
 	h.mustCompile("/api/v1")
@@ -68,9 +68,9 @@ func BenchmarkHandlerWithParam(b *testing.B) {
 // goarch: amd64
 // pkg: github.com/altlimit/restruct
 // cpu: Intel(R) Core(TM) i7-3770K CPU @ 3.50GHz
-// BenchmarkWithManyParams-8   	 1621026	       686.5 ns/op	     848 B/op	       6 allocs/op
+// BenchmarkWithManyParams-8   	 5754241	       209.3 ns/op	     104 B/op	       3 allocs/op
 // PASS
-// ok  	github.com/altlimit/restruct	1.871s
+// ok  	github.com/altlimit/restruct	1.425s
 func BenchmarkWithManyParams(b *testing.B) {
 	h := NewHandler(&testService3{})
 	h.mustCompile("/api/v1")
@@ -85,9 +85,9 @@ func BenchmarkWithManyParams(b *testing.B) {
 // goarch: amd64
 // pkg: github.com/altlimit/restruct
 // cpu: Intel(R) Core(TM) i7-3770K CPU @ 3.50GHz
-// BenchmarkMixedHandler-8   	  609625	      1913 ns/op	    1952 B/op	      17 allocs/op
+// BenchmarkMixedHandler-8   	  463426	      2287 ns/op	    1152 B/op	      21 allocs/op
 // PASS
-// ok  	github.com/altlimit/restruct	1.193s
+// ok  	github.com/altlimit/restruct	1.094s
 func BenchmarkMixedHandler(b *testing.B) {
 	h := NewHandler(&testService4{})
 	h.mustCompile("/api/v1")
@@ -115,6 +115,6 @@ func BenchmarkMatch(b *testing.B) {
 	m := &method{path: "catch/{all}"}
 	m.mustParse()
 	for i := 0; i < b.N; i++ {
-		m.match("catch/hello")
+		matchPath(paramCache{path: m.path, pathParts: m.pathParts}, "catch/hello")
 	}
 }

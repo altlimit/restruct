@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -39,8 +40,15 @@ type (
 	}
 
 	methodCache struct {
-		byParams []*method
+		byParams []paramCache
 		byPath   map[string][]*method
+	}
+
+	paramCache struct {
+		path      string
+		pathParts []string
+		pathRe    *regexp.Regexp
+		methods   []*method
 	}
 
 	wrappedHandler struct {
@@ -49,7 +57,9 @@ type (
 )
 
 func (mc *methodCache) methods() (methods []*method) {
-	methods = append(methods, mc.byParams...)
+	for _, param := range mc.byParams {
+		methods = append(methods, param.methods...)
+	}
 	for _, m := range mc.byPath {
 		methods = append(methods, m...)
 	}
@@ -149,21 +159,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// we do heavier look up such as path parts or regex then if any match
 	// we set path found but still need to match method for proper error return
 	status := http.StatusNotFound
-	for _, v := range h.cache.byParams {
-		params, ok := v.match(path)
+	for _, bp := range h.cache.byParams {
+		params, ok := matchPath(bp, path)
 		if ok {
-			if len(params) > 0 {
-				ctx := r.Context()
-				ctx = context.WithValue(ctx, keyParams, params)
-				r = r.WithContext(ctx)
-			}
-			ok := v.methods == nil
-			if !ok {
-				_, ok = v.methods[r.Method]
-			}
-			if ok {
-				runMethod(v)
-				return
+			for _, v := range bp.methods {
+				ok := v.methods == nil
+				if !ok {
+					_, ok = v.methods[r.Method]
+				}
+				if ok {
+					if len(params) > 0 {
+						ctx := r.Context()
+						ctx = context.WithValue(ctx, keyParams, params)
+						r = r.WithContext(ctx)
+					}
+					runMethod(v)
+					return
+				}
 			}
 			status = http.StatusMethodNotAllowed
 		}
@@ -233,14 +245,32 @@ func (h *Handler) updateCache() {
 	h.cache = &methodCache{
 		byPath: make(map[string][]*method),
 	}
+	// cache all same paths so we only compare it once
+	pathCache := make(map[string][]*method)
+	// we store ordered paths so it's still looked up in order you enter it
+	var orderedPaths []string
 	for k, svc := range h.services {
 		for _, v := range serviceToMethods(k, svc) {
 			if v.pathRe != nil || v.pathParts != nil {
-				h.cache.byParams = append(h.cache.byParams, v)
+				_, ok := pathCache[v.path]
+				if !ok {
+					orderedPaths = append(orderedPaths, v.path)
+				}
+				pathCache[v.path] = append(pathCache[v.path], v)
 			} else {
 				h.cache.byPath[v.path] = append(h.cache.byPath[v.path], v)
 			}
 		}
+	}
+	for _, path := range orderedPaths {
+		// all of methods here have the same path so we use first one
+		m := pathCache[path][0]
+		h.cache.byParams = append(h.cache.byParams, paramCache{
+			path:      path,
+			pathParts: m.pathParts,
+			pathRe:    m.pathRe,
+			methods:   pathCache[path],
+		})
 	}
 }
 
@@ -251,4 +281,52 @@ func (h *Handler) mustCompile(prefix string) {
 	h.prefix = prefix
 	h.prefixLen = len(h.prefix)
 	h.updateCache()
+}
+
+// Checks path against request path if it's valid, this accepts a stripped path and not a full path
+func matchPath(pc paramCache, path string) (params map[string]string, ok bool) {
+	params = make(map[string]string)
+	if pc.pathRe != nil {
+		match := pc.pathRe.FindStringSubmatch(path)
+		if len(match) > 0 {
+			for i, name := range pc.pathRe.SubexpNames() {
+				if i != 0 && name != "" {
+					params[name] = match[i]
+				}
+			}
+			ok = true
+		}
+	} else if pc.pathParts != nil {
+		// match by parts
+		idx := -1
+		pt := len(pc.pathParts)
+		for {
+			idx++
+			if idx+1 > pt {
+				return
+			}
+			i := strings.Index(path, "/")
+			var part string
+			if i == -1 {
+				part = path[i+1:]
+				if part == "" {
+					return
+				}
+			} else {
+				part = path[:i]
+			}
+			mPart := pc.pathParts[idx]
+			if mPart[0] == '{' {
+				params[mPart[1:len(mPart)-1]] = part
+			} else if mPart != part {
+				return
+			}
+			if i == -1 {
+				break
+			}
+			path = path[i+1:]
+		}
+		ok = idx+1 == pt
+	}
+	return
 }

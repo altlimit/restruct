@@ -92,7 +92,7 @@ func TestMethodMustParseMatch(t *testing.T) {
 	for _, v := range table {
 		m := &method{path: v.path}
 		m.mustParse()
-		params, ok := m.match(v.test)
+		params, ok := matchPath(paramCache{path: m.path, pathParts: m.pathParts, pathRe: m.pathRe}, v.test)
 		if ok != v.match {
 			t.Errorf("path %s not match %s", v.path, v.test)
 		}
