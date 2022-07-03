@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -14,10 +15,12 @@ import (
 var (
 	pathToRe = regexp.MustCompile(`{[^}]+}`)
 
-	typeHttpRequest = reflect.TypeOf(&http.Request{})
-	typeHttpWriter  = reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
-	typeContext     = reflect.TypeOf((*context.Context)(nil)).Elem()
-	typeError       = reflect.TypeOf((*error)(nil)).Elem()
+	typeHttpRequest              = reflect.TypeOf(&http.Request{})
+	typeHttpWriter               = reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
+	typeContext                  = reflect.TypeOf((*context.Context)(nil)).Elem()
+	typeError                    = reflect.TypeOf((*error)(nil)).Elem()
+	typeMultipartFileHeader      = reflect.TypeOf(&multipart.FileHeader{})
+	typeMultipartFileHeaderSlice = reflect.TypeOf([]*multipart.FileHeader{})
 )
 
 type (
@@ -30,7 +33,7 @@ type (
 		params      []reflect.Type
 		returns     []reflect.Type
 		methods     map[string]bool
-		middlewares []middleware
+		middlewares []Middleware
 	}
 )
 

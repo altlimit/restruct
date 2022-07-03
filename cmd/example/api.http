@@ -2,67 +2,22 @@
 
 ###
 
-POST {{baseUrl}}/products?limit=102&test=a&test=b&t=1&t=5&t=500
+POST {{baseUrl}}/users/login
 
 {
-    "photos": [{}]
+    "username": "admin",
+    "password": "admin"
 }
 
 ###
 
-GET {{baseUrl}}/products/123Hello
-
-
-###
-
-POST {{baseUrl}}/login
-
-{"username": "hello","password":"world"}
+GET {{baseUrl}}/blobs/download/abc
+Authorization: admin
 
 ###
 
-GET {{baseUrl}}/view-pdf
-
-###
-
-POST {{baseUrl}}/calc/123/add
-
-{
-    "a": 5,
-    "b": 2
-}
-
-###
-
-GET {{baseUrl}}/standard-handler
-Authorization: abc
-
-
-###
-
-GET {{baseUrl}}/abc/err
-
-###
-
-POST {{baseUrl}}/calc/y/another/.custom./routed/000
-
-{"B": "hello"}
-
-###
-
-GET http://localhost:8090/products/55
-
-###
-
-POST {{baseUrl}}/form-sample
-Content-Type: application/x-www-form-urlencoded
-
-name=hello&price=50
-
-
-###
-
-POST {{baseUrl}}/form-sample
+POST {{baseUrl}}/blobs/upload
+Authorization: admin
 Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
 
 ------WebKitFormBoundary7MA4YWxkTrZu0gW

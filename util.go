@@ -159,8 +159,6 @@ func BindForm(r *http.Request, out interface{}) error {
 	if len(formValues) == 0 {
 		return nil
 	}
-	multipartFH := reflect.TypeOf(&multipart.FileHeader{})
-	multipartSliceFH := reflect.TypeOf([]*multipart.FileHeader{})
 	for tag, field := range structtag.GetFieldsByTag(out, "form") {
 		if formVal, ok := formValues[tag]; ok {
 			vv := v.Field(field.Index)
@@ -178,14 +176,17 @@ func BindForm(r *http.Request, out interface{}) error {
 				case reflect.Int64:
 					v := formVal.(string)
 					val, _ = strconv.ParseInt(v, 10, 64)
+				case reflect.Float64:
+					v := formVal.(string)
+					val, _ = strconv.ParseFloat(v, 64)
 				case reflect.Ptr:
-					if vv.Type() == multipartFH {
+					if vv.Type() == typeMultipartFileHeader {
 						if fh, ok := formVal.(*multipart.FileHeader); ok {
 							val = fh
 						}
 					}
 				case reflect.Slice:
-					if vv.Type() == multipartSliceFH {
+					if vv.Type() == typeMultipartFileHeaderSlice {
 						val = formVal
 					}
 				}

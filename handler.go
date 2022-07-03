@@ -24,7 +24,7 @@ const (
 )
 
 type (
-	middleware func(http.Handler) http.Handler
+	Middleware func(http.Handler) http.Handler
 
 	Handler struct {
 		// Writer controls the output of your service, defaults to DefaultWriter
@@ -36,7 +36,7 @@ type (
 		prefixLen   int
 		services    map[string]interface{}
 		cache       *methodCache
-		middlewares []middleware
+		middlewares []Middleware
 	}
 
 	methodCache struct {
@@ -115,7 +115,7 @@ func (h *Handler) AddService(path string, svc interface{}) {
 }
 
 // Use adds a middleware to your services.
-func (h *Handler) Use(fns ...middleware) {
+func (h *Handler) Use(fns ...Middleware) {
 	h.middlewares = append(h.middlewares, fns...)
 }
 
@@ -134,7 +134,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		handler := &wrappedHandler{handler: h.createHandler(m)}
 		middlewares := append(h.middlewares, m.middlewares...)
 		for i := len(middlewares) - 1; i >= 0; i-- {
-			handler = &wrappedHandler{handler: h.middlewares[i](handler)}
+			handler = &wrappedHandler{handler: middlewares[i](handler)}
 		}
 		return handler
 	}
