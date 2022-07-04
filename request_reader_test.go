@@ -1,4 +1,4 @@
-package restruct
+package restruct_test
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/altlimit/restruct"
 )
 
 type (
@@ -32,7 +34,7 @@ func (ss *sampleService) Add2(ctx context.Context, r *addRequest) (int64, error)
 }
 
 func TestDefaultReaderRead(t *testing.T) {
-	h := NewHandler(&sampleService{})
+	h := restruct.NewHandler(&sampleService{})
 
 	bod := `[{"a":10,"b":20}, {"S":30,"d":50}, 100, 200]`
 	req := httptest.NewRequest(http.MethodPost, "/add", strings.NewReader(bod))

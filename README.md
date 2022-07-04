@@ -57,7 +57,7 @@ func (c *Calculator) Divide(a, b int64) (int64, error) {
     if b == 0 {
         return 0, errors.New("divide by 0")
     }
-    return a / b
+    return a / b, nil
 }
 
 func (c *Calculator) Multiply(r struct {
@@ -100,9 +100,9 @@ We have registered the `Calculator` struct here as our service and we should now
     1,
     0
 ]
-// -> 500 {"error": "Internal Server Error"}
+// -> 500 {"error":"Internal Server Error"}
 
-// POST http://localhost:8080/api/v1/multiple
+// POST http://localhost:8080/api/v1/multiply
 // With a single struct as a parameter, it will be similar to Add's implementation where it uses Bind internally to populate it. You can change your Bind with DefaultReader{Bind:...} to add your validation library.
 {
     "a": 2,
@@ -227,7 +227,7 @@ func (b *Blob) Login(l *login) interface{} {
 }
 ```
 
-This uses the `DefaultReader` which by default can unmarshal single struct and use default bind(`restruct.Bind`), you can use your own Bind with `DefaultReader{Bind:yourBinder}` if you want to add validation libraries. The Bind reads the body with json.Encoder, or form values. If you have multiple paramters you will need to send a json array body.
+This uses the `DefaultReader` which by default can unmarshal single struct and use default bind(`restruct.Bind`), you can use your own Bind with `DefaultReader{Bind:yourBinder}` if you want to add validation libraries. The Bind reads the body with json.Encoder, or form values. If you have multiple parameters you will need to send a json array body.
 
 ```json
 [
@@ -242,7 +242,7 @@ This is the default behaviour of `DefaultReader`. You can implement `RequestRead
 ```go
 type CustomReader struct {}
 func (cr *CustomReader) Read(r *http.Request, types []reflect.Type) (vals []reflect.Value, err error) {
-    // types are the paramter types in order of your handler you must return equal number of vals to args.
+    // types are the parameter types in order of your handler you must return equal number of vals to types.
     // You'll only get types that is not *http.Request, http.ResponseWriter, context.Context
     // You can return Error{} type here to return ResponseWriter errors/response and wrap your errors inside Error{Err:...}
     return
