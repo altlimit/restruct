@@ -18,6 +18,8 @@ type (
 	// and manages error handling. Adding Errors mapping can
 	// help with your existing error to a proper Error{}
 	DefaultWriter struct {
+		// Optional logger, defaults to log.Default()
+		Logger *log.Logger
 		Errors map[error]Error
 	}
 
@@ -73,7 +75,9 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, r *http.Request, out i
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-
+	if dw.Logger == nil {
+		dw.Logger = log.Default()
+	}
 	cType := "application/json; charset=UTF-8"
 	status := http.StatusOK
 	var headers map[string]string
@@ -116,10 +120,10 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, r *http.Request, out i
 				errData = e.Data
 			}
 			if e.Err != nil {
-				log.Println("Error:", e.Err)
+				dw.Logger.Println("Error:", e.Err)
 			}
 		} else {
-			log.Println("Error:", err)
+			dw.Logger.Println("Error:", err)
 		}
 		if msg == "" {
 			msg = http.StatusText(status)
@@ -148,13 +152,13 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, r *http.Request, out i
 	if b, ok := out.([]byte); ok {
 		_, err := w.Write(b)
 		if err != nil {
-			log.Println("WriteError", err)
+			dw.Logger.Println("WriteError", err)
 		}
 	} else {
 		enc := json.NewEncoder(w)
 		enc.SetEscapeHTML(false)
 		if err := enc.Encode(out); err != nil {
-			log.Println("WriteJsonError", err)
+			dw.Logger.Println("WriteJsonError", err)
 		}
 	}
 }
