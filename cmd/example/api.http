@@ -3,6 +3,7 @@
 ###
 
 POST {{baseUrl}}/users/login
+Content-Type: application/json
 
 {
     "username": "admin",

@@ -101,14 +101,20 @@ func limitsMiddleware(next http.Handler) http.Handler {
 
 // auth middleware
 func authMiddleware(next http.Handler) http.Handler {
-	wr := rs.DefaultWriter{}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "admin" {
-			wr.WriteJSON(w, r, rs.Error{Status: http.StatusUnauthorized})
+			writer.WriteJSON(w, r, rs.Error{Status: http.StatusUnauthorized})
 			return
 		}
 		// use SetValue/GetValue to easily sets and get values from context
 		r = rs.SetValue(r, "userID", int64(1))
+		next.ServeHTTP(w, r)
+	})
+}
+
+func loggerMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Println(r.Method, " - ", r.URL.Path)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -127,6 +133,10 @@ func (b *Blob) Routes() []rs.Route {
 		{Handler: "Download_0", Methods: []string{http.MethodGet}, Middlewares: auth},
 		{Handler: "Upload", Middlewares: auth},
 	}
+}
+
+func (b *Blob) Middlewares() []rs.Middleware {
+	return []rs.Middleware{loggerMiddleware}
 }
 
 // Standard handler, you must handle your own response

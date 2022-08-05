@@ -22,10 +22,7 @@ func Params(r *http.Request) map[string]string {
 }
 
 func Query(r *http.Request, name string) string {
-	if v, ok := r.URL.Query()[name]; ok && len(v) > 0 {
-		return v[0]
-	}
-	return ""
+	return r.URL.Query().Get(name)
 }
 
 // Bind checks for valid methods and tries to bind query strings and body into struct
@@ -45,32 +42,42 @@ func Bind(r *http.Request, out interface{}, methods ...string) error {
 	if out == nil {
 		return nil
 	}
-	if err := BindQuery(r, out); err != nil {
-		return err
+	if len(r.URL.Query()) > 0 {
+		if err := BindQuery(r, out); err != nil {
+			return err
+		}
 	}
 	if r.Method == http.MethodGet {
 		return nil
 	}
 	cType := r.Header.Get("Content-Type")
-	if cType == "" || strings.HasPrefix(cType, "application/json") {
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return fmt.Errorf("Bind: ioutil.ReadAll error %v", err)
-		}
-		if err := r.Body.Close(); err != nil {
-			return fmt.Errorf("Bind: r.Body.Close error %v", err)
-		}
-		if err := json.Unmarshal(body, out); err != nil {
-			return Error{
-				Status: http.StatusBadRequest,
-				Err:    fmt.Errorf("Bind: json.Unmarshal error %v", err),
-			}
-		}
-	} else if strings.HasPrefix(cType, "application/x-www-form-urlencoded") ||
-		strings.HasPrefix(cType, "multipart/form-data") {
+	if idx := strings.Index(cType, ";"); idx != -1 {
+		cType = cType[0:idx]
+	}
+	switch cType {
+	case "application/json":
+		return BindJson(r, out)
+	case "application/x-www-form-urlencoded", "multipart/form-data":
 		return BindForm(r, out)
 	}
+	return Error{Status: http.StatusUnsupportedMediaType}
+}
 
+// BindJson puts all json tagged values into struct fields
+func BindJson(r *http.Request, out interface{}) error {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return fmt.Errorf("Bind: ioutil.ReadAll error %v", err)
+	}
+	if err := r.Body.Close(); err != nil {
+		return fmt.Errorf("Bind: r.Body.Close error %v", err)
+	}
+	if err := json.Unmarshal(body, out); err != nil {
+		return Error{
+			Status: http.StatusBadRequest,
+			Err:    fmt.Errorf("Bind: json.Unmarshal error %v", err),
+		}
+	}
 	return nil
 }
 

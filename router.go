@@ -8,6 +8,11 @@ type (
 		Routes() []Route
 	}
 
+	// Middlewares interface for common middleware for a struct
+	Middlewares interface {
+		Middlewares() []Middleware
+	}
+
 	// Route for doing overrides with router interface and method restrictions.
 	Route struct {
 		// Handler is the method name you want to use for this route

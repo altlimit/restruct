@@ -55,7 +55,7 @@ func (dw *DefaultWriter) Write(w http.ResponseWriter, r *http.Request, types []r
 		vals = vals[:lt-1]
 	}
 	if len(vals) == 1 {
-		dw.WriteJSON(w, r, vals[0].Interface())
+		out = vals[0].Interface()
 		return
 	}
 	var args []interface{}

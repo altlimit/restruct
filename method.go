@@ -44,10 +44,15 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 
 	// get methods first
 	var routes []Route
-	hasRoutes := false
+	skipMethods := map[string]bool{}
 	if router, ok := svc.(Router); ok {
 		routes = router.Routes()
-		hasRoutes = true
+		skipMethods["Routes"] = true
+	}
+	var middlewares []Middleware
+	if mws, ok := svc.(Middlewares); ok {
+		middlewares = mws.Middlewares()
+		skipMethods["Middlewares"] = true
 	}
 	tvt := vv.NumMethod()
 	tvEl := tv
@@ -57,13 +62,14 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 	location := tvEl.PkgPath() + "." + tvEl.Name()
 	for i := 0; i < tvt; i++ {
 		m := tv.Method(i)
-		// Skip Routes method if it implements Router interface{}
-		if hasRoutes && m.Name == "Routes" {
+		// Skip interface methods
+		if _, ok := skipMethods[m.Name]; ok {
 			continue
 		}
 		mm := &method{
-			location: location + "." + m.Name,
-			source:   vv.Method(i),
+			location:    location + "." + m.Name,
+			source:      vv.Method(i),
+			middlewares: middlewares,
 		}
 		if len(routes) > 0 {
 			foundRoute := false
@@ -72,11 +78,12 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 					continue
 				}
 				mr := &method{
-					location: mm.location,
-					source:   mm.source,
+					location:    mm.location,
+					source:      mm.source,
+					middlewares: mm.middlewares,
 				}
 				foundRoute = true
-				mr.middlewares = route.Middlewares
+				mr.middlewares = append(mr.middlewares, route.Middlewares...)
 				if route.Path != "" {
 					mr.path = prefix + strings.TrimLeft(route.Path, "/")
 				} else {

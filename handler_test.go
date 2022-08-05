@@ -169,7 +169,7 @@ github.com/altlimit/restruct_test.User.Login: /users/login`
 	if routes != found {
 		t.Errorf("wanted \n%s\n routes got \n%s\n", routes, found)
 	}
-
+	jh := map[string]string{"Content-Type": "application/json"}
 	table := []struct {
 		method   string
 		path     string
@@ -178,25 +178,26 @@ github.com/altlimit/restruct_test.User.Login: /users/login`
 		response string
 		status   int
 	}{
-		{http.MethodPost, "/users/login", `{"username": "admin", "password": "admin"}`, nil, `true`, 200},
-		{http.MethodPost, "/users/login", `{}`, nil, `{"error":"Invalid login"}`, 403},
-		{http.MethodPost, "/users/login", `{`, nil, `{"error":"Bad Request"}`, 400},
+		{http.MethodPost, "/users/login", `{"username": "admin", "password": "admin"}`, jh, `true`, 200},
+		{http.MethodPost, "/users/login", `{}`, jh, `{"error":"Invalid login"}`, 403},
+		{http.MethodPost, "/users/login", `{`, jh, `{"error":"Bad Request"}`, 400},
 		{http.MethodPost, "/users/login", `{"username": "admin", "password": "admin"}`, map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
 			`{"error":"Invalid login"}`, 403},
 		{http.MethodPost, "/users/login", `username=admin&password=admin`, map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
 			`true`, 200},
-		{http.MethodPost, "/blobs/download/abc", `{}`, nil, `{"error":"Method Not Allowed"}`, 405},
+		{http.MethodPost, "/blobs/download/abc", `{}`, jh, `{"error":"Method Not Allowed"}`, 405},
 		{http.MethodGet, "/blobs/download/abc", `{}`, nil, `{"error":"Unauthorized"}`, 401},
 		{http.MethodGet, "/blobs/download/abc/", `{}`, nil, `{"error":"Not Found"}`, 404},
 		{http.MethodGet, "/blobs/download/abc", ``, map[string]string{"Authorization": "admin"}, `abc`, 200},
 		{http.MethodGet, "/blobs/.custom/abc/123", ``, nil, `{"error":"Unauthorized"}`, 401},
 		{http.MethodGet, "/blobs/.custom/abc/123/", ``, map[string]string{"Authorization": "admin"}, `"abc/123/"`, 200},
-		{http.MethodPost, "/calc/add", `{"a":10,"b":20}`, nil, `30`, 200},
-		{http.MethodPost, "/calc/subtract", `[20,10]`, nil, `10`, 200},
-		{http.MethodPost, "/calc/subtract", `["bad"]`, nil, `{"error":"Bad Request"}`, 400},
-		{http.MethodPost, "/calc/divide", `[10,2]`, nil, `5`, 200},
-		{http.MethodPost, "/calc/divide", `[10,0]`, nil, `{"error":"Internal Server Error"}`, 500},
-		{http.MethodPost, "/calc/multiply", `{"a":10,"b":2}`, nil, `20`, 200},
+		{http.MethodPost, "/calc/add", `{"a":10,"b":20}`, jh, `30`, 200},
+		{http.MethodPost, "/calc/subtract", `[20,10]`, jh, `10`, 200},
+		{http.MethodPost, "/calc/subtract", `["bad"]`, jh, `{"error":"Bad Request"}`, 400},
+		{http.MethodPost, "/calc/divide", `[10,2]`, jh, `5`, 200},
+		{http.MethodPost, "/calc/divide", `[10,0]`, jh, `{"error":"Internal Server Error"}`, 500},
+		{http.MethodPost, "/calc/multiply", `{"a":10,"b":2}`, jh, `20`, 200},
+		{http.MethodPost, "/calc/multiply", `{"a":10,"b":2}`, nil, `{"error":"Unsupported Media Type"}`, 415},
 		{http.MethodGet, "/users/execs", ``, nil, `---EXECS---`, 200},
 	}
 
