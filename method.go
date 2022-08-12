@@ -43,10 +43,12 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 	vv := reflect.ValueOf(svc)
 
 	// get methods first
-	var routes []Route
+	routes := make(map[string][]Route)
 	skipMethods := map[string]bool{}
 	if router, ok := svc.(Router); ok {
-		routes = router.Routes()
+		for _, route := range router.Routes() {
+			routes[route.Handler] = append(routes[route.Handler], route)
+		}
 		skipMethods["Routes"] = true
 	}
 	var middlewares []Middleware
@@ -72,38 +74,33 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 			middlewares: middlewares,
 		}
 		if len(routes) > 0 {
-			foundRoute := false
-			for _, route := range routes {
-				if route.Handler != m.Name {
-					continue
-				}
-				mr := &method{
-					location:    mm.location,
-					source:      mm.source,
-					middlewares: mm.middlewares,
-				}
-				foundRoute = true
-				mr.middlewares = append(mr.middlewares, route.Middlewares...)
-				if route.Path != "" {
-					mr.path = prefix + strings.TrimLeft(route.Path, "/")
-				} else {
-					mr.path = prefix + nameToPath(m.Name)
-				}
-				if len(route.Methods) > 0 {
-					mr.methods = make(map[string]bool)
-					for _, method := range route.Methods {
-						mr.methods[method] = true
+			rts, ok := routes[m.Name]
+			if ok {
+				for _, route := range rts {
+					mr := &method{
+						location:    mm.location,
+						source:      mm.source,
+						middlewares: mm.middlewares,
 					}
+					mr.middlewares = append(mr.middlewares, route.Middlewares...)
+					if route.Path != "" {
+						mr.path = prefix + strings.TrimLeft(route.Path, "/")
+					} else {
+						mr.path = prefix + nameToPath(m.Name)
+					}
+					if len(route.Methods) > 0 {
+						mr.methods = make(map[string]bool)
+						for _, method := range route.Methods {
+							mr.methods[method] = true
+						}
+					}
+					mr.mustParse()
+					methods = append(methods, mr)
 				}
-				mr.mustParse()
-				methods = append(methods, mr)
-			}
-			if foundRoute {
 				continue
 			}
-		} else {
-			mm.path = prefix + nameToPath(m.Name)
 		}
+		mm.path = prefix + nameToPath(m.Name)
 		mm.mustParse()
 		methods = append(methods, mm)
 	}
@@ -176,9 +173,6 @@ func nameToPath(name string) string {
 // Populates method fields, if there's no params it will leave pathRe nil and
 // directly compare path with equality.
 func (m *method) mustParse() {
-	if m.path == "" {
-		panic("path not provided")
-	}
 	rePath := m.path
 	params := pathToRe.FindAllString(m.path, -1)
 	if len(params) > 0 {
