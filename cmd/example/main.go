@@ -87,6 +87,23 @@ func (v *V1) user(r *http.Request) (int64, error) {
 	return 0, errAuth
 }
 
+func (v *V1) Pages(r *http.Request) (code int, pages []string, err error) {
+	code = http.StatusAccepted
+	pages = append(pages, "hello", "world")
+	if e := r.URL.Query().Get("err"); e != "" {
+		err = errors.New(e)
+	}
+	return
+}
+
+func (v *V1) RawResponse() *rs.Response {
+	return &rs.Response{
+		Status:      http.StatusOK,
+		ContentType: "text/html",
+		Content:     []byte(`<html><body>Hi</body></html>`),
+	}
+}
+
 // limit request size middleware
 func limitsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +120,7 @@ func limitsMiddleware(next http.Handler) http.Handler {
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "admin" {
-			writer.WriteJSON(w, r, rs.Error{Status: http.StatusUnauthorized})
+			writer.WriteJSON(w, rs.Error{Status: http.StatusUnauthorized})
 			return
 		}
 		// use SetValue/GetValue to easily sets and get values from context
@@ -143,7 +160,7 @@ func (b *Blob) Middlewares() []rs.Middleware {
 func (b *Blob) Download_0(w http.ResponseWriter, r *http.Request) {
 	user, err := v1.user(r)
 	if err != nil {
-		writer.WriteJSON(w, r, err)
+		writer.WriteJSON(w, err)
 		return
 	}
 	blobID := rs.Params(r)["0"]

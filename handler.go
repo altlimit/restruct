@@ -37,6 +37,7 @@ type (
 		services    map[string]interface{}
 		cache       *methodCache
 		middlewares []Middleware
+		notFound    *method
 	}
 
 	methodCache struct {
@@ -119,6 +120,11 @@ func (h *Handler) Use(fns ...Middleware) {
 	h.middlewares = append(h.middlewares, fns...)
 }
 
+func (h *Handler) NotFound(hdlr interface{}) {
+	h.notFound = &method{source: reflect.ValueOf(hdlr)}
+	h.notFound.mustParse()
+}
+
 // ServeHTTP calls the method with the matched route.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path[h.prefixLen:]
@@ -179,6 +185,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			status = http.StatusMethodNotAllowed
 		}
+	}
+	if status == http.StatusNotFound && h.notFound != nil {
+		runMethod(h.notFound)
+		return
 	}
 	h.Writer.Write(w, r, refTypes(typeError), refVals(Error{Status: status}))
 }

@@ -2,6 +2,13 @@
 
 ###
 
+GET {{baseUrl}}/pages?err=hello
+
+###
+
+GET {{baseUrl}}/raw-response
+
+###
 POST {{baseUrl}}/users/login
 Content-Type: application/json
 

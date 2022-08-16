@@ -64,7 +64,7 @@ func authMiddleware(next http.Handler) http.Handler {
 	wr := rs.DefaultWriter{}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "admin" {
-			wr.WriteJSON(w, r, rs.Error{Status: http.StatusUnauthorized})
+			wr.WriteJSON(w, rs.Error{Status: http.StatusUnauthorized})
 			return
 		}
 		r = rs.SetValue(r, "userID", int64(1))

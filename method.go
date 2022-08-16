@@ -19,6 +19,7 @@ var (
 	typeHttpWriter               = reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
 	typeContext                  = reflect.TypeOf((*context.Context)(nil)).Elem()
 	typeError                    = reflect.TypeOf((*error)(nil)).Elem()
+	typeInt                      = reflect.TypeOf((*int)(nil)).Elem()
 	typeMultipartFileHeader      = reflect.TypeOf(&multipart.FileHeader{})
 	typeMultipartFileHeaderSlice = reflect.TypeOf([]*multipart.FileHeader{})
 )
@@ -195,6 +196,9 @@ func (m *method) mustParse() {
 
 	if m.source.IsValid() {
 		mt := m.source.Type()
+		if mt.Kind() != reflect.Func {
+			panic("method must be of type func")
+		}
 		for i := 0; i < mt.NumOut(); i++ {
 			m.returns = append(m.returns, mt.Out(i))
 		}

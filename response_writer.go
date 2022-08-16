@@ -19,8 +19,9 @@ type (
 	// help with your existing error to a proper Error{}
 	DefaultWriter struct {
 		// Optional logger, defaults to log.Default()
-		Logger *log.Logger
-		Errors map[error]Error
+		Logger         *log.Logger
+		Errors         map[error]Error
+		EscapeJsonHtml bool
 	}
 
 	// Response is used by DefaultWriter for custom response
@@ -28,24 +29,44 @@ type (
 		Status      int
 		Headers     map[string]string
 		ContentType string
-		Content     interface{}
+		Content     []byte
+	}
+
+	// Json response to specify a status code for default writer
+	Json struct {
+		Status  int
+		Content interface{}
 	}
 )
 
 // Write implements the DefaultWriter ResponseWriter
-// this handles if your return is (int, error) or any last error it would write the error if it's not nil
-// otherwise return the other returns as output, if its more than 2 it will be slice of interface{} excluding error
+// returning (int, any, error) will write status int, any response if error is nil
+// returning (any, error) will write any response if error is nil with status 200 or 400, 500 depdening on your error
+// returning (int, any, any, error) will write status int slice of [any, any] response if error is nil
 func (dw *DefaultWriter) Write(w http.ResponseWriter, r *http.Request, types []reflect.Type, vals []reflect.Value) {
 	// no returns are not sent here so we just check if 1 or more
 	lt := len(types)
 	if lt == 1 {
-		dw.WriteJSON(w, r, vals[0].Interface())
+		val := vals[0].Interface()
+		if resp, ok := val.(*Response); ok {
+			dw.WriteResponse(w, resp)
+		} else {
+			dw.WriteJSON(w, val)
+		}
 		return
 	}
-	var out interface{}
+	var (
+		out interface{}
+		j   *Json
+	)
 	defer func() {
-		dw.WriteJSON(w, r, out)
+		if j != nil {
+			j.Content = out
+			out = j
+		}
+		dw.WriteJSON(w, out)
 	}()
+	// return with last type error
 	if types[lt-1] == typeError {
 		errVal := vals[lt-1]
 		if !errVal.IsNil() {
@@ -53,6 +74,11 @@ func (dw *DefaultWriter) Write(w http.ResponseWriter, r *http.Request, types []r
 			return
 		}
 		vals = vals[:lt-1]
+	}
+	// returning (int, something) means status code, response
+	if len(vals) > 1 && types[0] == typeInt {
+		j = &Json{Status: int(vals[0].Int())}
+		vals = vals[1:]
 	}
 	if len(vals) == 1 {
 		out = vals[0].Interface()
@@ -65,37 +91,30 @@ func (dw *DefaultWriter) Write(w http.ResponseWriter, r *http.Request, types []r
 	out = args
 }
 
-// This writes application/json content type uses status codes 200
+// This writes application/json content type uses status code 200
 // on valid ones and 500 on uncaught, 400 on malformed json, etc.
-func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, r *http.Request, out interface{}) {
+// use Json{Status, Content} to specify a code
+func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, out interface{}) {
 	if w == nil {
 		return
 	}
+	status := http.StatusOK
+	if j, ok := out.(*Json); ok {
+		if j.Status > 0 {
+			status = j.Status
+		}
+		out = j.Content
+	}
 	if out == nil {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(status)
 		return
 	}
 	if dw.Logger == nil {
 		dw.Logger = log.Default()
 	}
 	cType := "application/json; charset=UTF-8"
-	status := http.StatusOK
-	var headers map[string]string
-	if resp, ok := out.(Response); ok {
-		if resp.Status != 0 {
-			status = resp.Status
-		}
-		headers = resp.Headers
-		if resp.ContentType != "" {
-			cType = resp.ContentType
-		}
-		if resp.Content != nil {
-			out = resp.Content
-		} else {
-			out = nil
-		}
-	}
 
+	var headers map[string]string
 	if err, ok := out.(error); ok {
 		status = http.StatusInternalServerError
 		var (
@@ -149,16 +168,23 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, r *http.Request, out i
 	if !foundContentType {
 		h.Set("Content-Type", cType)
 	}
-	if b, ok := out.([]byte); ok {
-		_, err := w.Write(b)
-		if err != nil {
-			dw.Logger.Println("WriteError", err)
-		}
-	} else {
-		enc := json.NewEncoder(w)
-		enc.SetEscapeHTML(false)
-		if err := enc.Encode(out); err != nil {
-			dw.Logger.Println("WriteJsonError", err)
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(dw.EscapeJsonHtml)
+	if err := enc.Encode(out); err != nil {
+		dw.Logger.Println("WriteJsonError", err)
+	}
+}
+
+func (dw *DefaultWriter) WriteResponse(w http.ResponseWriter, resp *Response) {
+	if resp.Status > 0 {
+		w.WriteHeader(resp.Status)
+	}
+	if resp.ContentType != "" && w.Header().Get("Content-Type") == "" {
+		w.Header().Add("Content-Type", resp.ContentType)
+	}
+	if len(resp.Content) > 0 {
+		if _, err := w.Write(resp.Content); err != nil {
+			dw.Logger.Println("WriteResponse: error", err)
 		}
 	}
 }
