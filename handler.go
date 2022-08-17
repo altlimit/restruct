@@ -120,8 +120,10 @@ func (h *Handler) Use(fns ...Middleware) {
 	h.middlewares = append(h.middlewares, fns...)
 }
 
-func (h *Handler) NotFound(hdlr interface{}) {
-	h.notFound = &method{source: reflect.ValueOf(hdlr)}
+// NotFound sets the notFound handler and calls it
+// if no route matches
+func (h *Handler) NotFound(handler interface{}) {
+	h.notFound = &method{source: reflect.ValueOf(handler)}
 	h.notFound.mustParse()
 }
 

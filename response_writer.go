@@ -18,8 +18,8 @@ type (
 	// and manages error handling. Adding Errors mapping can
 	// help with your existing error to a proper Error{}
 	DefaultWriter struct {
-		// Optional logger, defaults to log.Default()
-		Logger         *log.Logger
+		// Optional ErrorHandler, called whenever unhandled errors occurs, defaults to logging errors
+		ErrorHandler   func(error)
 		Errors         map[error]Error
 		EscapeJsonHtml bool
 	}
@@ -91,6 +91,15 @@ func (dw *DefaultWriter) Write(w http.ResponseWriter, r *http.Request, types []r
 	out = args
 }
 
+func (dw *DefaultWriter) log(err error) {
+	if dw.ErrorHandler == nil {
+		dw.ErrorHandler = func(err error) {
+			log.Println("InternalError:", err)
+		}
+	}
+	dw.ErrorHandler(err)
+}
+
 // This writes application/json content type uses status code 200
 // on valid ones and 500 on uncaught, 400 on malformed json, etc.
 // use Json{Status, Content} to specify a code
@@ -108,9 +117,6 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, out interface{}) {
 	if out == nil {
 		w.WriteHeader(status)
 		return
-	}
-	if dw.Logger == nil {
-		dw.Logger = log.Default()
 	}
 	cType := "application/json; charset=UTF-8"
 
@@ -139,10 +145,10 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, out interface{}) {
 				errData = e.Data
 			}
 			if e.Err != nil {
-				dw.Logger.Println("Error:", e.Err)
+				dw.log(e.Err)
 			}
 		} else {
-			dw.Logger.Println("Error:", err)
+			dw.log(err)
 		}
 		if msg == "" {
 			msg = http.StatusText(status)
@@ -171,7 +177,7 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, out interface{}) {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(dw.EscapeJsonHtml)
 	if err := enc.Encode(out); err != nil {
-		dw.Logger.Println("WriteJsonError", err)
+		dw.log(err)
 	}
 }
 
@@ -184,7 +190,7 @@ func (dw *DefaultWriter) WriteResponse(w http.ResponseWriter, resp *Response) {
 	}
 	if len(resp.Content) > 0 {
 		if _, err := w.Write(resp.Content); err != nil {
-			dw.Logger.Println("WriteResponse: error", err)
+			dw.log(err)
 		}
 	}
 }
