@@ -14,13 +14,20 @@ import (
 	"github.com/altlimit/restruct/structtag"
 )
 
+// Params returns map of params from url path like /{param1} will be map[param1] = value
 func Params(r *http.Request) map[string]string {
-	if params, ok := r.Context().Value(keyParams).(map[string]string); ok {
+	return Vars(r.Context())
+}
+
+// Vars returns map of params from url from request context
+func Vars(ctx context.Context) map[string]string {
+	if params, ok := ctx.Value(keyParams).(map[string]string); ok {
 		return params
 	}
 	return map[string]string{}
 }
 
+// Query returns a query string value
 func Query(r *http.Request, name string) string {
 	return r.URL.Query().Get(name)
 }

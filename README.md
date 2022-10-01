@@ -172,7 +172,7 @@ http.Handle("/", h)
 http.Handle("/api/v1/", h.WithPrefix("/api/v1/"))
 ```
 
-You can have parameters with method using number and access them using `restruct.Params()`:
+You can have parameters with method using number and access them using `restruct.Params(req)` or `restruct.Vars(ctx)`:
 
 ```go
 // Will be available at /upload/{0}
