@@ -2,6 +2,10 @@
 
 ###
 
+GET {{baseUrl}}/docs
+
+###
+
 GET {{baseUrl}}/pages?err=hello
 
 ###

@@ -157,14 +157,14 @@ func TestHandler(t *testing.T) {
 	for _, r := range h.Routes() {
 		buf.WriteString(r + "\n")
 	}
-	routes := `github.com/altlimit/restruct_test.Blob.Download_0:GET /blobs/download/{0}
-github.com/altlimit/restruct_test.Blob.Upload: /blobs/.custom/{path:.+}
-github.com/altlimit/restruct_test.Calculator.Add: /calc/add
-github.com/altlimit/restruct_test.Calculator.Divide: /calc/divide
-github.com/altlimit/restruct_test.Calculator.Multiply: /calc/multiply
-github.com/altlimit/restruct_test.Calculator.Subtract: /calc/subtract
-github.com/altlimit/restruct_test.User.Execs: /users/execs
-github.com/altlimit/restruct_test.User.Login: /users/login`
+	routes := `/blobs/.custom/{path:.+} [*] -> github.com/altlimit/restruct_test.Blob.Upload(*http.Request) (interface {})
+/blobs/download/{0} [GET] -> github.com/altlimit/restruct_test.Blob.Download_0(http.ResponseWriter, *http.Request)
+/calc/add [*] -> github.com/altlimit/restruct_test.Calculator.Add(*http.Request) (interface {})
+/calc/divide [*] -> github.com/altlimit/restruct_test.Calculator.Divide(int64, int64) (int64, error)
+/calc/multiply [*] -> github.com/altlimit/restruct_test.Calculator.Multiply(struct { A int64 "json:\"a\""; B int64 "json:\"b\"" }) (int64)
+/calc/subtract [*] -> github.com/altlimit/restruct_test.Calculator.Subtract(int64, int64) (int64)
+/users/execs [*] -> github.com/altlimit/restruct_test.User.Execs(*http.Request) (int)
+/users/login [*] -> github.com/altlimit/restruct_test.User.Login(context.Context, struct { Username string "json:\"username\" form:\"username\""; Password string "json:\"password\" form:\"password\"" }) (bool, error)`
 	found := strings.Trim(buf.String(), "\n")
 	if routes != found {
 		t.Errorf("wanted \n%s\n routes got \n%s\n", routes, found)

@@ -87,7 +87,7 @@ func (h *Handler) WithPrefix(prefix string) *Handler {
 	return h
 }
 
-// Routes returns a list of routes registered
+// Routes returns a list of routes registered and it's definition
 func (h *Handler) Routes() (routes []string) {
 	h.updateCache()
 	for _, m := range h.cache.methods() {
@@ -95,7 +95,23 @@ func (h *Handler) Routes() (routes []string) {
 		for k := range m.methods {
 			methods = append(methods, k)
 		}
-		routes = append(routes, m.location+":"+strings.Join(methods, ",")+" "+h.prefix+m.path)
+		if len(methods) == 0 {
+			methods = append(methods, "*")
+		}
+		r := h.prefix + m.path + " [" + strings.Join(methods, ",") + "] -> " + m.location
+		var params []string
+		for _, v := range m.params {
+			params = append(params, v.String())
+		}
+		var returns []string
+		for _, v := range m.returns {
+			returns = append(returns, v.String())
+		}
+		r += "(" + strings.Join(params, ", ") + ")"
+		if len(returns) > 0 {
+			r += " (" + strings.Join(returns, ", ") + ")"
+		}
+		routes = append(routes, r)
 	}
 	sort.Strings(routes)
 	return

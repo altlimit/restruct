@@ -23,6 +23,7 @@ type (
 
 		User  User `route:"users"`
 		Blobs Blob
+		docs  []string
 	}
 
 	User struct {
@@ -85,6 +86,10 @@ func (v *V1) user(r *http.Request) (int64, error) {
 		return userID, nil
 	}
 	return 0, errAuth
+}
+
+func (v *V1) Docs() []string {
+	return v.docs
 }
 
 func (v *V1) Pages(r *http.Request) (code int, pages []string, err error) {
@@ -203,6 +208,7 @@ func (u *User) Login(login struct {
 
 func main() {
 	h := rs.NewHandler(v1)
+	v1.docs = h.Routes()
 	// still defaultreader but used our bind to add validation errors
 	h.Reader = &rs.DefaultReader{Bind: v1.bind}
 	// still defaultwriter but with options to map custom errors
