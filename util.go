@@ -213,30 +213,42 @@ func BindForm(r *http.Request, out interface{}) error {
 	return nil
 }
 
-// GetValues returns a map of all values from context
-func GetValues(r *http.Request) map[string]interface{} {
-	vars, ok := r.Context().Value(keyVals).(map[string]interface{})
+func GetVals(ctx context.Context) map[string]interface{} {
+	vars, ok := ctx.Value(keyVals).(map[string]interface{})
 	if ok {
 		return vars
 	}
 	return make(map[string]interface{})
 }
 
-// SetValue stores a key value pair in context
-func SetValue(r *http.Request, key string, val interface{}) *http.Request {
-	vals := GetValues(r)
+func SetVal(ctx context.Context, key string, val interface{}) context.Context {
+	vals := GetVals(ctx)
 	vals[key] = val
-	ctx := r.Context()
-	return r.WithContext(context.WithValue(ctx, keyVals, vals))
+	return context.WithValue(ctx, keyVals, vals)
 }
 
-// GetValue returns the stored value from context
-func GetValue(r *http.Request, key string) interface{} {
-	val, ok := GetValues(r)[key]
+func GetVal(ctx context.Context, key string) interface{} {
+	val, ok := GetVals(ctx)[key]
 	if ok {
 		return val
 	}
 	return nil
+
+}
+
+// GetValues returns a map of all values from context
+func GetValues(r *http.Request) map[string]interface{} {
+	return GetVals(r.Context())
+}
+
+// SetValue stores a key value pair in context
+func SetValue(r *http.Request, key string, val interface{}) *http.Request {
+	return r.WithContext(SetVal(r.Context(), key, val))
+}
+
+// GetValue returns the stored value from context
+func GetValue(r *http.Request, key string) interface{} {
+	return GetVal(r.Context(), key)
 }
 
 func refTypes(types ...reflect.Type) []reflect.Type {
