@@ -120,7 +120,8 @@ func BindQuery(r *http.Request, out interface{}) error {
 		}
 		return newVals.Interface()
 	}
-	for tag, field := range structtag.GetFieldsByTag(out, "query") {
+	for _, field := range structtag.GetFieldsByTag(out, "query") {
+		tag := field.Tag
 		if q := Query(r, tag); q != "" {
 			vv := v.Field(field.Index)
 			vk := vv.Kind()
@@ -173,7 +174,8 @@ func BindForm(r *http.Request, out interface{}) error {
 	if len(formValues) == 0 {
 		return nil
 	}
-	for tag, field := range structtag.GetFieldsByTag(out, "form") {
+	for _, field := range structtag.GetFieldsByTag(out, "form") {
+		tag := field.Tag
 		if formVal, ok := formValues[tag]; ok {
 			vv := v.Field(field.Index)
 			vk := vv.Kind()
