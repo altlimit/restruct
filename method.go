@@ -85,7 +85,11 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 					}
 					mr.middlewares = append(mr.middlewares, route.Middlewares...)
 					if route.Path != "" {
-						mr.path = prefix + strings.TrimLeft(route.Path, "/")
+						if route.Path == "." {
+							mr.path = strings.TrimRight(prefix, "/")
+						} else {
+							mr.path = prefix + strings.TrimLeft(route.Path, "/")
+						}
 					} else {
 						mr.path = prefix + nameToPath(m.Name)
 					}

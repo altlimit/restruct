@@ -1,6 +1,7 @@
 package restruct
 
 import (
+	"context"
 	"net/http"
 	"reflect"
 	"testing"
@@ -34,6 +35,7 @@ type serviceA struct {
 	Bravo   serviceB `route:"my/{tag}"`
 	Charlie *serviceB
 	Delta   *serviceB
+	Echo    *serviceD
 }
 
 type serviceB struct {
@@ -42,32 +44,47 @@ type serviceB struct {
 
 type serviceC struct{}
 
+type serviceD struct{}
+
 func (s *serviceA) Hello(r *http.Request)                             {}
 func (s *serviceB) World(w http.ResponseWriter)                       {}
 func (s *serviceC) HelloWorld(r *http.Request, w http.ResponseWriter) {}
 func (s serviceC) Hello_World(w http.ResponseWriter, r *http.Request) {}
-func (s serviceC) Overwrite()                                         {}
-func (s *serviceC) Routes() map[string]string {
-	return map[string]string{
-		"Overwrite": ".custom/{pid}/_download_",
+
+func (s serviceD) Overwrite()             {}
+func (s serviceD) Root(c context.Context) {}
+func (s *serviceD) Routes() []Route {
+	return []Route{
+		{Handler: "Overwrite", Path: ".custom/{pid}/_download_"},
+		{Handler: "Root", Path: "."},
 	}
 }
 
 func TestServiceToMethods(t *testing.T) {
-	s1 := &serviceA{Charlie: &serviceB{}}
+	s1 := &serviceA{Charlie: &serviceB{}, Echo: &serviceD{}}
 
 	routes := map[string][]reflect.Type{
-		"s1/hello":                                  {typeHttpRequest},
-		"s1/my/{tag}/world":                         {typeHttpWriter},
-		"s1/my/{tag}/delta/hello-world":             {typeHttpRequest, typeHttpWriter},
-		"s1/my/{tag}/delta/hello/world":             {typeHttpWriter, typeHttpRequest},
-		"s1/charlie/world":                          {typeHttpWriter},
-		"s1/charlie/delta/hello-world":              {typeHttpRequest, typeHttpWriter},
-		"s1/charlie/delta/hello/world":              {typeHttpWriter, typeHttpRequest},
-		"s1/charlie/delta/.custom/{pid}/_download_": {},
+		"s1/hello":                         {typeHttpRequest},
+		"s1/my/{tag}/world":                {typeHttpWriter},
+		"s1/my/{tag}/delta/hello-world":    {typeHttpRequest, typeHttpWriter},
+		"s1/my/{tag}/delta/hello/world":    {typeHttpWriter, typeHttpRequest},
+		"s1/charlie/world":                 {typeHttpWriter},
+		"s1/charlie/delta/hello-world":     {typeHttpRequest, typeHttpWriter},
+		"s1/charlie/delta/hello/world":     {typeHttpWriter, typeHttpRequest},
+		"s1/echo/.custom/{pid}/_download_": {},
+		"s1/echo":                          {typeContext},
 	}
 	methods := serviceToMethods("s1/", s1)
+	if len(methods) != len(routes) {
+		t.Fatalf("expected %d methods got %d", len(routes), len(methods))
+	}
 	for _, m := range methods {
+		if _, ok := routes[m.path]; !ok {
+			t.Fatalf("route %s not found", m.path)
+		}
+		if len(m.params) != len(routes[m.path]) {
+			t.Errorf("%s param mismatch expected %d got %d", m.path, len(routes[m.path]), len(m.params))
+		}
 		for i, v := range m.params {
 			if v != routes[m.path][i] {
 				t.Errorf("route mismatch %s", m.path)

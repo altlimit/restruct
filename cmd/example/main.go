@@ -149,7 +149,6 @@ func catchAllHandler() http.HandlerFunc {
 
 // Add middleware to this service without changing their paths
 func (b *Blob) Routes() []rs.Route {
-	// todo maybe ability to somehow put middleware to a whole nested struct
 	auth := []rs.Middleware{authMiddleware}
 	return []rs.Route{
 		{Handler: "Download_0", Methods: []string{http.MethodGet}, Middlewares: auth},
@@ -157,6 +156,7 @@ func (b *Blob) Routes() []rs.Route {
 	}
 }
 
+// Add middleware to the whole struct
 func (b *Blob) Middlewares() []rs.Middleware {
 	return []rs.Middleware{loggerMiddleware}
 }
@@ -204,6 +204,32 @@ func (u *User) Login(login struct {
 		return true, nil
 	}
 	return false, rs.Error{Status: http.StatusForbidden, Message: "Invalid login"}
+}
+
+// CRUD api with POST on api/v1/users and GET,PUT,DELETE on api/v1/users/{id}
+func (*User) Routes() []rs.Route {
+	return []rs.Route{
+		{Handler: "CreateUser", Path: ".", Methods: []string{http.MethodPost}},
+		{Handler: "ReadUser", Path: "{id}", Methods: []string{http.MethodGet}},
+		{Handler: "UpdateUser", Path: "{id}", Methods: []string{http.MethodPut}},
+		{Handler: "DeleteUser", Path: "{id}", Methods: []string{http.MethodDelete}},
+	}
+}
+
+func (u *User) CreateUser() {
+	log.Println("CreateUser")
+}
+
+func (u *User) ReadUser(ctx context.Context) {
+	log.Println("ReadUser", rs.Vars(ctx)["id"])
+}
+
+func (u *User) UpdateUser(ctx context.Context) {
+	log.Println("UpdateUser", rs.Vars(ctx)["id"])
+}
+
+func (u *User) DeleteUser(ctx context.Context) {
+	log.Println("DeleteUser", rs.Vars(ctx)["id"])
 }
 
 func main() {

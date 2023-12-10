@@ -23,6 +23,13 @@ Content-Type: application/json
 
 ###
 
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{}
+
+###
+
 GET {{baseUrl}}/blobs/download/abc
 Authorization: admin
 
