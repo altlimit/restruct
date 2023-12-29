@@ -5,10 +5,11 @@ import (
 	"encoding/hex"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 var (
-	structTagsCache = make(map[string][]*StructField)
+	tagsCache sync.Map
 )
 
 type StructField struct {
@@ -50,8 +51,9 @@ func GetFieldsByTag(i interface{}, tag string) []*StructField {
 		h.Write([]byte(cKey))
 		cKey = hex.EncodeToString(h.Sum(nil))
 	}
-	fields, ok := structTagsCache[cKey]
+	cache, ok := tagsCache.Load(cKey)
 	if !ok {
+		var fields []*StructField
 		for i := 0; i < t.NumField(); i++ {
 			f := t.Field(i)
 			m := f.Tag.Get(tag)
@@ -59,8 +61,9 @@ func GetFieldsByTag(i interface{}, tag string) []*StructField {
 				fields = append(fields, NewStructField(i, m))
 			}
 		}
-		structTagsCache[cKey] = fields
+		tagsCache.Store(cKey, fields)
+		cache = fields
 	}
 
-	return fields
+	return cache.([]*StructField)
 }

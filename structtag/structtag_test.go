@@ -40,7 +40,7 @@ func TestGetFieldsByTag(t *testing.T) {
 			}
 		}
 	}
-	if _, ok := structTagsCache["structtag.hello:marshal"]; !ok {
+	if _, ok := tagsCache.Load("structtag.hello:marshal"); !ok {
 		t.Errorf("No cache found")
 	}
 	z := &hello{World: "1235"}
