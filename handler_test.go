@@ -122,6 +122,10 @@ func (b *Blob) Download_0(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(string(blobID)))
 }
 
+func (b *Blob) Link_0Path(ctx context.Context) string {
+	return rs.Vars(ctx)["0Path"]
+}
+
 func (b *Blob) Upload(r *http.Request) interface{} {
 	return rs.Params(r)["path"]
 }
@@ -159,6 +163,7 @@ func TestHandler(t *testing.T) {
 	}
 	routes := `/blobs/.custom/{path:.+} [*] -> github.com/altlimit/restruct_test.Blob.Upload(*http.Request) (interface {})
 /blobs/download/{0} [GET] -> github.com/altlimit/restruct_test.Blob.Download_0(http.ResponseWriter, *http.Request)
+/blobs/link/{0Path} [*] -> github.com/altlimit/restruct_test.Blob.Link_0Path(context.Context) (string)
 /calc/add [*] -> github.com/altlimit/restruct_test.Calculator.Add(*http.Request) (interface {})
 /calc/divide [*] -> github.com/altlimit/restruct_test.Calculator.Divide(int64, int64) (int64, error)
 /calc/multiply [*] -> github.com/altlimit/restruct_test.Calculator.Multiply(struct { A int64 "json:\"a\""; B int64 "json:\"b\"" }) (int64)

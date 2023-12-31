@@ -35,6 +35,16 @@ Authorization: admin
 
 ###
 
+GET {{baseUrl}}/blobs/link/abc/def
+Authorization: admin
+
+###
+
+GET {{baseUrl}}/blobs/links/abc/def
+Authorization: admin
+
+###
+
 POST {{baseUrl}}/blobs/upload
 Authorization: admin
 Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW

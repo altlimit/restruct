@@ -139,6 +139,7 @@ func (b *Blob) Routes() []Route {
 }
 
 // Will be available at /blob/{path:.+} since we overwrite it in Routes
+// you can also avoid using regex by naming your handler with Blob_0Path and access with "0Path" params.
 func (b *Blob) Download(w http.ResponseWriter, r *http.Request) {
     path := restruct.Params(r)["path"]
     // handle your struct like normal

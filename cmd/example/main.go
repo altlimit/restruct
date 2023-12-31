@@ -153,12 +153,22 @@ func (b *Blob) Routes() []rs.Route {
 	return []rs.Route{
 		{Handler: "Download_0", Methods: []string{http.MethodGet}, Middlewares: auth},
 		{Handler: "Upload", Middlewares: auth},
+		{Handler: "Link", Path: "links/{path:.+}"},
 	}
 }
 
 // Add middleware to the whole struct
 func (b *Blob) Middlewares() []rs.Middleware {
 	return []rs.Middleware{loggerMiddleware}
+}
+
+// Magic var 0Path means anything after /link/.+ without regex
+func (b *Blob) Link_0Path(ctx context.Context) string {
+	return rs.Vars(ctx)["0Path"]
+}
+
+func (b *Blob) Link(ctx context.Context) string {
+	return rs.Vars(ctx)["path"]
 }
 
 // Standard handler, you must handle your own response

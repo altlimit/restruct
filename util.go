@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"reflect"
@@ -72,9 +72,9 @@ func Bind(r *http.Request, out interface{}, methods ...string) error {
 
 // BindJson puts all json tagged values into struct fields
 func BindJson(r *http.Request, out interface{}) error {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		return fmt.Errorf("Bind: ioutil.ReadAll error %v", err)
+		return fmt.Errorf("Bind: io.ReadAll error %v", err)
 	}
 	if err := r.Body.Close(); err != nil {
 		return fmt.Errorf("Bind: r.Body.Close error %v", err)

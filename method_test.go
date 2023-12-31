@@ -53,6 +53,13 @@ func (s serviceC) Hello_World(w http.ResponseWriter, r *http.Request) {}
 
 func (s serviceD) Overwrite()             {}
 func (s serviceD) Root(c context.Context) {}
+
+func (s *serviceA) Path_0()        {}
+func (s *serviceA) Path_0_1()      {}
+func (s *serviceA) Path_0_Sub_1()  {}
+func (s *serviceA) Link_0FP()      {}
+func (s *serviceA) Link_0FP_0123() {}
+
 func (s *serviceD) Routes() []Route {
 	return []Route{
 		{Handler: "Overwrite", Path: ".custom/{pid}/_download_"},
@@ -73,6 +80,11 @@ func TestServiceToMethods(t *testing.T) {
 		"s1/charlie/delta/hello/world":     {typeHttpWriter, typeHttpRequest},
 		"s1/echo/.custom/{pid}/_download_": {},
 		"s1/echo":                          {typeContext},
+		"s1/path/{0}":                      {},
+		"s1/path/{0}/{1}":                  {},
+		"s1/path/{0}/sub/{1}":              {},
+		"s1/link/{0FP}":                    {},
+		"s1/link/{0FP}/{0123}":             {},
 	}
 	methods := serviceToMethods("s1/", s1)
 	if len(methods) != len(routes) {

@@ -345,7 +345,13 @@ func matchPath(pc paramCache, path string) (params map[string]string, ok bool) {
 			}
 			mPart := pc.pathParts[idx]
 			if mPart[0] == '{' {
-				params[mPart[1:len(mPart)-1]] = part
+				name := mPart[1 : len(mPart)-1]
+				if mPart == "{0Path}" {
+					params[name] = path
+					ok = true
+					return
+				}
+				params[name] = part
 			} else if mPart != part {
 				return
 			}

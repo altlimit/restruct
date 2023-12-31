@@ -151,9 +151,10 @@ func nameToPath(name string) string {
 	var buf bytes.Buffer
 	nt := len(name)
 	skipDash := false
+	startParam := false
 	for i := 0; i < nt; i++ {
 		c := rune(name[i])
-		if unicode.IsUpper(c) {
+		if !startParam && unicode.IsUpper(c) {
 			if i > 0 && !skipDash {
 				buf.WriteRune('-')
 			}
@@ -161,16 +162,26 @@ func nameToPath(name string) string {
 			buf.WriteRune(c)
 			skipDash = false
 		} else if c == '_' {
+			if startParam {
+				buf.WriteRune('}')
+				startParam = false
+			}
 			buf.WriteRune('/')
 			skipDash = true
 		} else {
-			if skipDash && unicode.IsNumber(c) {
-				buf.WriteString(fmt.Sprintf("{%c}", c))
+			if !startParam && skipDash && unicode.IsNumber(c) {
+				startParam = true
+				buf.WriteString(fmt.Sprintf("{%c", c))
 			} else {
 				buf.WriteRune(c)
 			}
-			skipDash = false
+			if !startParam {
+				skipDash = false
+			}
 		}
+	}
+	if startParam {
+		buf.WriteRune('}')
 	}
 	return buf.String()
 }
