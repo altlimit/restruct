@@ -52,6 +52,9 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 		}
 		skipMethods["Routes"] = true
 	}
+	if _, ok := svc.(Init); ok {
+		skipMethods["Init"] = true
+	}
 	var middlewares []Middleware
 	if mws, ok := svc.(Middlewares); ok {
 		middlewares = mws.Middlewares()

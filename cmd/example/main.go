@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -195,7 +195,7 @@ func (b *Blob) Upload(ctx context.Context, upload *uploadRequest) interface{} {
 	if err != nil {
 		return err
 	}
-	buf, err := ioutil.ReadAll(f)
+	buf, err := io.ReadAll(f)
 	if err != nil {
 		return err
 	}
@@ -242,8 +242,13 @@ func (u *User) DeleteUser(ctx context.Context) {
 	log.Println("DeleteUser", rs.Vars(ctx)["id"])
 }
 
-func main() {
-	h := rs.NewHandler(v1)
+func (v *V1) notFound(r *http.Request) error {
+	log.Println("Not Found", r.URL.Path)
+	return rs.Error{Status: http.StatusNotFound}
+}
+
+// all initialization can happen within the strcut method
+func (v *V1) Init(h *rs.Handler) {
 	v1.docs = h.Routes()
 	// still defaultreader but used our bind to add validation errors
 	h.Reader = &rs.DefaultReader{Bind: v1.bind}
@@ -251,16 +256,20 @@ func main() {
 	h.Writer = writer
 	// add middleware
 	h.Use(limitsMiddleware)
-	// this is same as http.Handle("/api/v1/", v1.WithPrefix("/api/v1/"))
-	rs.Handle("/api/v1/", h)
-	http.Handle("/", catchAllHandler())
-	port := "8090"
+	h.NotFound(v1.notFound)
+
 	var buf bytes.Buffer
 	buf.WriteString("Endpoints:")
 	for _, r := range h.Routes() {
 		buf.WriteString("\n> " + r)
 	}
 	log.Println(buf.String())
+}
+
+func main() {
+	rs.Handle("/api/v1/", v1)
+	http.Handle("/", catchAllHandler())
+	port := "8090"
 	log.Println("Listening", port)
 	http.ListenAndServe(":"+port, nil)
 }

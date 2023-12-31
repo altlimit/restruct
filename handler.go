@@ -77,6 +77,9 @@ func NewHandler(svc interface{}) *Handler {
 		services: map[string]interface{}{"": svc},
 	}
 	h.mustCompile("")
+	if init, ok := svc.(Init); ok {
+		init.Init(h)
+	}
 	return h
 }
 

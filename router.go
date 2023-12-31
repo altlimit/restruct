@@ -2,8 +2,8 @@ package restruct
 
 type (
 	// Router can be used to override method name to specific path,
-	// implement Router interface in your service and return the new mapping:
-	// {"ProductEdit": Route{Path: "product/{pid}"}}
+	// implement Router interface in your service and return a slice of Route:
+	// [Route{Handler:"ProductEdit", Path: "product/{pid}"}]
 	Router interface {
 		Routes() []Route
 	}
@@ -11,6 +11,11 @@ type (
 	// Middlewares interface for common middleware for a struct
 	Middlewares interface {
 		Middlewares() []Middleware
+	}
+
+	// Init interface to access and override handler configs
+	Init interface {
+		Init(*Handler)
 	}
 
 	// Route for doing overrides with router interface and method restrictions.
