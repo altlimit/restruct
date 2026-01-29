@@ -3,7 +3,6 @@ package restruct
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"reflect"
 )
@@ -59,21 +58,15 @@ func (dr *DefaultReader) Read(r *http.Request, types []reflect.Type) (vals []ref
 			Err:    fmt.Errorf(s, f...),
 		}
 	}
+	// Use json.Decoder for streaming - more efficient than ReadAll + Unmarshal
 	var params []json.RawMessage
-	var body []byte
-	body, err = io.ReadAll(r.Body)
-	if err != nil {
-		err = fmt.Errorf("DefaultReader.Read: ioutil.ReadAll error %v", err)
+	decoder := json.NewDecoder(r.Body)
+	if decErr := decoder.Decode(&params); decErr != nil {
+		badRequest("DefaultReader.Read: json.Decode error %v", decErr)
 		return
 	}
-	err = r.Body.Close()
-	if err != nil {
-		err = fmt.Errorf("DefaultReader.Read: r.Body.Close error %v", err)
-		return
-	}
-	err = json.Unmarshal(body, &params)
-	if err != nil {
-		badRequest("DefaultReader.Read: json.Unmarshal error %v", err)
+	if closeErr := r.Body.Close(); closeErr != nil {
+		err = fmt.Errorf("DefaultReader.Read: r.Body.Close error %v", closeErr)
 		return
 	}
 	if len(params) < typeLen {
@@ -83,9 +76,8 @@ func (dr *DefaultReader) Read(r *http.Request, types []reflect.Type) (vals []ref
 	for i := 0; i < typeLen; i++ {
 		t := types[i]
 		val := reflect.New(t)
-		err = json.Unmarshal(params[i], val.Interface())
-		if err != nil {
-			badRequest("DefaultReader.Read: param %d must be %s (%v)", i, t, err)
+		if unmarshalErr := json.Unmarshal(params[i], val.Interface()); unmarshalErr != nil {
+			badRequest("DefaultReader.Read: param %d must be %s (%v)", i, t, unmarshalErr)
 			return
 		}
 		vals[i] = val.Elem()

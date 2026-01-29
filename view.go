@@ -128,10 +128,12 @@ func (v *View) Write(w http.ResponseWriter, r *http.Request, types []reflect.Typ
 
 	var fallbackParams map[string]string
 
+	// Load routes once for both checks below
+	v.loadRoutes()
+
 	// Check if we have a route pattern in context
 	var routeMatch string
 	if route, ok := r.Context().Value(keyRoute).(string); ok {
-		v.loadRoutes()
 		v.cacheMu.RLock()
 		if fName, ok := v.routes[strings.TrimPrefix(route, "/")]; ok {
 			routeMatch = fName
@@ -141,7 +143,6 @@ func (v *View) Write(w http.ResponseWriter, r *http.Request, types []reflect.Typ
 
 	// Fallback: try to match route by pattern if not found by direct key
 	if routeMatch == "" {
-		v.loadRoutes()
 		v.cacheMu.RLock()
 		for pattern, fName := range v.routes {
 			// pattern is like "{profile}"
