@@ -1,0 +1,61 @@
+@baseUrl = http://localhost:8090
+
+###
+
+GET {{baseUrl}}/docs
+
+###
+
+GET {{baseUrl}}/pages?err=hello
+
+###
+
+GET {{baseUrl}}/api/raw-response
+
+###
+POST {{baseUrl}}/api/users/login
+Content-Type: application/json
+
+{
+    "username": "admin",
+    "password": "admin"
+}
+
+###
+
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{}
+
+###
+
+GET {{baseUrl}}/api/blobs/download/abc
+Authorization: admin
+
+###
+
+GET {{baseUrl}}/api/blobs/link/abc/def
+Authorization: admin
+
+###
+
+GET {{baseUrl}}/api/blobs/links/abc/def
+Authorization: admin
+
+###
+
+POST {{baseUrl}}/api/blobs/upload
+Authorization: admin
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="name"
+
+A sample file
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="sample.txt"
+Content-Type: text/plain
+
+< ./api.http
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
