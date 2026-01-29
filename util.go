@@ -16,6 +16,11 @@ import (
 
 var (
 	MaxBodySize int64 = 10485760 // 10MB default limit
+
+	// Pre-cached slice types for BindQuery
+	intSlice    = reflect.TypeOf([]int{})
+	int64Slice  = reflect.TypeOf([]int64{})
+	stringSlice = reflect.TypeOf([]string{})
 )
 
 // Params returns map of params from url path like /{param1} will be map[param1] = value
@@ -101,9 +106,6 @@ func BindQuery(r *http.Request, out interface{}) error {
 	if t.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
-	intSlice := reflect.TypeOf([]int{})
-	int64Slice := reflect.TypeOf([]int64{})
-	stringSlice := reflect.TypeOf([]string{})
 	toTypeSlice := func(vals reflect.Value, sliceType reflect.Type) interface{} {
 		if sliceType == stringSlice {
 			return vals.Interface()
@@ -240,11 +242,7 @@ func SetVal(ctx context.Context, key string, val interface{}) context.Context {
 }
 
 func GetVal(ctx context.Context, key string) interface{} {
-	val, ok := GetVals(ctx)[key]
-	if ok {
-		return val
-	}
-	return nil
+	return GetVals(ctx)[key]
 }
 
 // GetValues returns a map of all values from context
@@ -267,9 +265,9 @@ func refTypes(types ...reflect.Type) []reflect.Type {
 }
 
 func refVals(vals ...interface{}) []reflect.Value {
-	values := make([]reflect.Value, 0, len(vals))
-	for _, v := range vals {
-		values = append(values, reflect.ValueOf(v))
+	values := make([]reflect.Value, len(vals))
+	for i, v := range vals {
+		values[i] = reflect.ValueOf(v)
 	}
 	return values
 }

@@ -170,11 +170,15 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, out interface{}) {
 }
 
 func (dw *DefaultWriter) WriteResponse(w http.ResponseWriter, resp *Response) {
+	// Headers must be set BEFORE WriteHeader per HTTP spec
+	if resp.ContentType != "" && w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", resp.ContentType)
+	}
+	for k, v := range resp.Headers {
+		w.Header().Set(k, v)
+	}
 	if resp.Status > 0 {
 		w.WriteHeader(resp.Status)
-	}
-	if resp.ContentType != "" && w.Header().Get("Content-Type") == "" {
-		w.Header().Add("Content-Type", resp.ContentType)
 	}
 	if len(resp.Content) > 0 {
 		if _, err := w.Write(resp.Content); err != nil {

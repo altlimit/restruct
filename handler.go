@@ -400,22 +400,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If no param route matched, check Any
-	if anyMatch != nil {
-		for _, v := range anyMatch.methods {
-			// Apply params if any
-			ctx := r.Context()
-			if len(anyParams) > 0 {
-				ctx = context.WithValue(ctx, keyParams, anyParams)
-			}
-			ctx = context.WithValue(ctx, keyIsAny, true)
-			ctx = context.WithValue(ctx, keyRoute, v.path)
-			r = r.WithContext(ctx)
-
-			// Any matches any method usually? Or we restrict if user restricted?
-			// Usually Any is unrestricted.
-			runMethod(v)
-			return
+	if anyMatch != nil && len(anyMatch.methods) > 0 {
+		v := anyMatch.methods[0]
+		// Apply params if any
+		ctx := r.Context()
+		if len(anyParams) > 0 {
+			ctx = context.WithValue(ctx, keyParams, anyParams)
 		}
+		ctx = context.WithValue(ctx, keyIsAny, true)
+		ctx = context.WithValue(ctx, keyRoute, v.path)
+		r = r.WithContext(ctx)
+
+		// Any matches any method usually (unrestricted)
+		runMethod(v)
+		return
 	}
 
 	// Use pre-allocated error values for common cases
