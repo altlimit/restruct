@@ -430,10 +430,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // a multiple return is passed as slice of interface{}
 func (h *Handler) createHandler(m *method) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var (
-			argTypes   []reflect.Type
-			argIndexes []int
-		)
 		args := make([]reflect.Value, len(m.params))
 		for k, v := range m.params {
 			switch v {
@@ -443,23 +439,20 @@ func (h *Handler) createHandler(m *method) http.Handler {
 				args[k] = reflect.ValueOf(w)
 			case typeContext:
 				args[k] = reflect.ValueOf(r.Context())
-			default:
-				argTypes = append(argTypes, v)
-				argIndexes = append(argIndexes, k)
 			}
 		}
-		// has unknown types in parameters, use RequestReader
-		if len(argIndexes) > 0 {
-			typeArgs, err := h.Reader.Read(r, argTypes)
+		// has unknown types in parameters, use RequestReader (pre-computed at init)
+		if len(m.readerIndexes) > 0 {
+			typeArgs, err := h.Reader.Read(r, m.readerTypes)
 			if err != nil {
 				h.Writer.Write(w, r, refTypes(typeError), refVals(err))
 				return
 			}
-			if len(typeArgs) != len(argIndexes) {
+			if len(typeArgs) != len(m.readerIndexes) {
 				h.Writer.Write(w, r, refTypes(typeError), refVals(Error{Err: ErrReaderReturnLen}))
 				return
 			}
-			for k, i := range argIndexes {
+			for k, i := range m.readerIndexes {
 				args[i] = typeArgs[k]
 			}
 		}

@@ -21,16 +21,18 @@ var (
 
 type (
 	method struct {
-		Name        string
-		location    string
-		source      reflect.Value
-		path        string
-		pathParts   []string
-		params      []reflect.Type
-		returns     []reflect.Type
-		methods     map[string]bool
-		middlewares []Middleware
-		writer      ResponseWriter
+		Name          string
+		location      string
+		source        reflect.Value
+		path          string
+		pathParts     []string
+		params        []reflect.Type
+		returns       []reflect.Type
+		methods       map[string]bool
+		middlewares   []Middleware
+		writer        ResponseWriter
+		readerTypes   []reflect.Type // Pre-computed types for RequestReader
+		readerIndexes []int          // Pre-computed indexes for RequestReader args
 	}
 )
 
@@ -226,7 +228,16 @@ func (m *method) mustParse() {
 			m.returns = append(m.returns, mt.Out(i))
 		}
 		for i := 0; i < mt.NumIn(); i++ {
-			m.params = append(m.params, mt.In(i))
+			t := mt.In(i)
+			m.params = append(m.params, t)
+			// Pre-compute which params need RequestReader
+			switch t {
+			case typeHttpRequest, typeHttpWriter, typeContext:
+				// These are handled directly, not via RequestReader
+			default:
+				m.readerTypes = append(m.readerTypes, t)
+				m.readerIndexes = append(m.readerIndexes, i)
+			}
 		}
 	}
 }
