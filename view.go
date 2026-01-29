@@ -30,6 +30,8 @@ type (
 		Layouts []string
 		// Error template to use if view/file not found
 		Error string
+		// Data is a callback to get default data for templates
+		Data func(r *http.Request) map[string]interface{}
 
 		// Writer to fallback for non-view responses or errors.
 		// If nil, it will use the Handler's writer if available, or default to DefaultWriter.
@@ -69,7 +71,7 @@ func (v *View) Write(w http.ResponseWriter, r *http.Request, types []reflect.Typ
 			// v.delegate(w, r, types, vals)
 			// For now, simple error
 			if err, ok := vals[i].Interface().(error); ok {
-				v.error(w, r, err)
+				v.error(w, r, err, nil)
 			}
 			return
 		}
@@ -238,13 +240,13 @@ func (v *View) Write(w http.ResponseWriter, r *http.Request, types []reflect.Typ
 	if isStatic {
 		file, err := v.FS.Open(fileName)
 		if err != nil {
-			v.error(w, r, err)
+			v.error(w, r, err, nil)
 			return
 		}
 		defer file.Close()
 		content, err := io.ReadAll(file)
 		if err != nil {
-			v.error(w, r, err)
+			v.error(w, r, err, nil)
 			return
 		}
 		http.ServeContent(w, r, fileName, modTime, bytes.NewReader(content))
@@ -262,7 +264,7 @@ func (v *View) Write(w http.ResponseWriter, r *http.Request, types []reflect.Typ
 	// Template handling
 	tmpl, err := v.getTemplate(fileName, modTime)
 	if err != nil {
-		v.error(w, r, err)
+		v.error(w, r, err, nil)
 		return
 	}
 
@@ -372,50 +374,42 @@ func (v *View) getLayoutModTime() (time.Time, error) {
 	return maxTime, nil
 }
 
-func (v *View) render(w http.ResponseWriter, r *http.Request, tmpl *template.Template, name string, data interface{}) {
+func (v *View) viewData(r *http.Request, data interface{}) map[string]interface{} {
 	var viewData map[string]interface{}
 
-	inject := func(dest map[string]interface{}) {
-		dest["Request"] = r
-		if params, ok := r.Context().Value(keyParams).(map[string]string); ok {
-			for k, v := range params {
-				dest[k] = v
-			}
-		}
+	if v.Data != nil {
+		viewData = v.Data(r)
+	} else {
+		viewData = make(map[string]interface{})
 	}
 
-	if data == nil {
-		viewData = make(map[string]interface{})
-		inject(viewData)
-		v.execute(w, r, tmpl, name, viewData)
-		return
+	viewData["Request"] = r
+	if params, ok := r.Context().Value(keyParams).(map[string]string); ok {
+		for k, v := range params {
+			viewData[k] = v
+		}
 	}
 
 	// If it's a map, we merge it directly
 	if m, ok := data.(map[string]interface{}); ok {
 		// Copy map so we don't mutate input
-		merged := make(map[string]interface{}, len(m)+1)
 		for k, v := range m {
-			merged[k] = v
+			viewData[k] = v
 		}
-		inject(merged)
-		v.execute(w, r, tmpl, name, merged)
-		return
+	} else if data != nil {
+		viewData["Data"] = data
 	}
 
-	// Otherwise, we wrap it in Data
-	wrapper := struct {
-		Data    interface{}
-		Request *http.Request
-	}{
-		Data:    data,
-		Request: r,
-	}
-	v.execute(w, r, tmpl, name, wrapper)
+	return viewData
 }
 
-func (v *View) error(w http.ResponseWriter, r *http.Request, err error) {
-	slog.Error("View Error", "error", err)
+func (v *View) render(w http.ResponseWriter, r *http.Request, tmpl *template.Template, name string, data interface{}) {
+
+	v.execute(w, r, tmpl, name, data)
+}
+
+func (v *View) error(w http.ResponseWriter, r *http.Request, err error, data interface{}) {
+	slog.Error("View Error", "error", err, "path", r.URL.Path)
 	// Try to render the Error template if defined
 	var errs []error
 	if v.Error != "" {
@@ -435,10 +429,13 @@ func (v *View) error(w http.ResponseWriter, r *http.Request, err error) {
 
 		errTmpl, parseErr := v.getTemplate(v.Error, actErrModTime)
 		if parseErr == nil {
-			if err2 := errTmpl.ExecuteTemplate(w, v.Error, map[string]interface{}{
-				"Error":   err,
-				"Request": r,
-			}); err2 == nil {
+			if data == nil {
+				data = v.viewData(r, nil)
+			}
+			if d, ok := data.(map[string]interface{}); ok {
+				d["Error"] = err
+			}
+			if err2 := errTmpl.ExecuteTemplate(w, v.Error, data); err2 == nil {
 				return
 			} else {
 				errs = append(errs, err2)
@@ -455,7 +452,7 @@ func (v *View) error(w http.ResponseWriter, r *http.Request, err error) {
 	vals := []reflect.Value{errVal}
 
 	if len(errs) > 0 {
-		slog.Error("Render Error", "errors", errs)
+		slog.Error("Render Error", "errors", errs, "path", r.URL.Path)
 	}
 
 	if v.Writer != nil && *v.Writer != nil {
@@ -468,9 +465,10 @@ func (v *View) error(w http.ResponseWriter, r *http.Request, err error) {
 func (v *View) execute(w http.ResponseWriter, r *http.Request, tmpl *template.Template, name string, data interface{}) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	// Execute the specific file template
+	data = v.viewData(r, data)
 	err := tmpl.ExecuteTemplate(w, name, data)
 	if err != nil {
-		v.error(w, r, err)
+		v.error(w, r, err, data)
 	}
 }
 
@@ -564,19 +562,19 @@ func (v *View) renderPath(w http.ResponseWriter, r *http.Request, path string, d
 
 	var modTime time.Time
 	statFS, hasStat := v.FS.(fs.StatFS)
-
+	data = v.viewData(r, data)
 	// Check if the file exists and get mod time
 	if hasStat {
 		info, err := statFS.Stat(path)
 		if err != nil {
-			v.error(w, r, err)
+			v.error(w, r, err, data)
 			return
 		}
 		modTime = info.ModTime()
 	} else {
 		f, err := v.FS.Open(path)
 		if err != nil {
-			v.error(w, r, err)
+			v.error(w, r, err, data)
 			return
 		}
 		f.Close()
@@ -593,7 +591,7 @@ func (v *View) renderPath(w http.ResponseWriter, r *http.Request, path string, d
 	// Get or parse the template
 	tmpl, err := v.getTemplate(path, modTime)
 	if err != nil {
-		v.error(w, r, err)
+		v.error(w, r, err, data)
 		return
 	}
 
