@@ -266,9 +266,10 @@ func refTypes(types ...reflect.Type) []reflect.Type {
 	return types
 }
 
-func refVals(vals ...interface{}) (values []reflect.Value) {
+func refVals(vals ...interface{}) []reflect.Value {
+	values := make([]reflect.Value, 0, len(vals))
 	for _, v := range vals {
 		values = append(values, reflect.ValueOf(v))
 	}
-	return
+	return values
 }

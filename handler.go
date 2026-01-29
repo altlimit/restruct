@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
-
 	"sort"
 	"strings"
 )
@@ -692,7 +691,14 @@ func extractParamsFromPath(urlPath string, pathParts []string) map[string]string
 
 // Checks path against request path if it's valid, this accepts a stripped path and not a full path
 func matchPath(pc paramCache, path string) (params map[string]string, ok bool) {
-	params = make(map[string]string)
+	// Pre-allocate with capacity based on pathParts (each param segment needs one entry)
+	paramCount := 0
+	for _, p := range pc.pathParts {
+		if len(p) > 2 && p[0] == '{' && p[len(p)-1] == '}' {
+			paramCount++
+		}
+	}
+	params = make(map[string]string, paramCount)
 	// match by parts
 	idx := -1
 	pt := len(pc.pathParts)

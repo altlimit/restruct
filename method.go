@@ -1,9 +1,7 @@
 package restruct
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"mime/multipart"
 	"net/http"
 	"reflect"
@@ -160,7 +158,7 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 // Hello_0 -> hello/{0}
 // Hello_0_World -> hello/{0}/world
 func nameToPath(name string) string {
-	var buf bytes.Buffer
+	var buf strings.Builder
 	nt := len(name)
 	if name == "Index" {
 		return ""
@@ -177,22 +175,23 @@ func nameToPath(name string) string {
 		c := rune(name[i])
 		if !startParam && unicode.IsUpper(c) {
 			if i > 0 && !skipDash {
-				buf.WriteRune('-')
+				buf.WriteByte('-')
 			}
 			c = unicode.ToLower(c)
 			buf.WriteRune(c)
 			skipDash = false
 		} else if c == '_' {
 			if startParam {
-				buf.WriteRune('}')
+				buf.WriteByte('}')
 				startParam = false
 			}
-			buf.WriteRune('/')
+			buf.WriteByte('/')
 			skipDash = true
 		} else {
 			if !startParam && skipDash && unicode.IsNumber(c) {
 				startParam = true
-				buf.WriteString(fmt.Sprintf("{%c", c))
+				buf.WriteString("{")
+				buf.WriteRune(c)
 			} else {
 				buf.WriteRune(c)
 			}
@@ -202,7 +201,7 @@ func nameToPath(name string) string {
 		}
 	}
 	if startParam {
-		buf.WriteRune('}')
+		buf.WriteByte('}')
 	}
 	return buf.String()
 }
