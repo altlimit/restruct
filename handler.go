@@ -15,7 +15,17 @@ type (
 
 var (
 	ErrReaderReturnLen = errors.New("reader args len does not match")
+
+	// Pre-allocated error responses to avoid allocations in hot paths
+	errNotFoundTypes        = []reflect.Type{typeError}
+	errNotFoundVals         []reflect.Value
+	errMethodNotAllowedVals []reflect.Value
 )
+
+func init() {
+	errNotFoundVals = []reflect.Value{reflect.ValueOf(Error{Status: http.StatusNotFound})}
+	errMethodNotAllowedVals = []reflect.Value{reflect.ValueOf(Error{Status: http.StatusMethodNotAllowed})}
+}
 
 const (
 	keyParams ctxKey = "params"
@@ -37,11 +47,13 @@ type (
 		// Reader controls the input of your service, defaults to DefaultReader
 		Reader RequestReader
 
-		prefix      string
-		prefixLen   int
-		services    map[string]interface{}
-		cache       *methodCache
-		middlewares []Middleware
+		prefix            string
+		prefixLen         int
+		services          map[string]interface{}
+		cache             *methodCache
+		middlewares       []Middleware
+		writerInitialized bool
+		readerInitialized bool
 	}
 
 	methodCache struct {
@@ -245,11 +257,18 @@ func (h *Handler) Use(fns ...Middleware) {
 // ServeHTTP calls the method with the matched route.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path[h.prefixLen:]
-	if h.Writer == nil {
-		h.Writer = &DefaultWriter{}
+	// Lazy initialization with flags to avoid nil checks on every request
+	if !h.writerInitialized {
+		if h.Writer == nil {
+			h.Writer = &DefaultWriter{}
+		}
+		h.writerInitialized = true
 	}
-	if h.Reader == nil {
-		h.Reader = &DefaultReader{Bind: Bind}
+	if !h.readerInitialized {
+		if h.Reader == nil {
+			h.Reader = &DefaultReader{Bind: Bind}
+		}
+		h.readerInitialized = true
 	}
 	// if there are middleware we wrap it in reverse so it's called
 	// in the order they were added
@@ -276,7 +295,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		h.Writer.Write(w, r, refTypes(typeError), refVals(Error{Status: http.StatusMethodNotAllowed}))
+		h.Writer.Write(w, r, errNotFoundTypes, errMethodNotAllowedVals)
 		return
 	}
 	// we do heavier look up such as path parts or regex then if any match
@@ -399,7 +418,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.Writer.Write(w, r, refTypes(typeError), refVals(Error{Status: status}))
+	// Use pre-allocated error values for common cases
+	if status == http.StatusNotFound {
+		h.Writer.Write(w, r, errNotFoundTypes, errNotFoundVals)
+	} else {
+		h.Writer.Write(w, r, errNotFoundTypes, errMethodNotAllowedVals)
+	}
 }
 
 // wrapped handler that calls the actual method and processes the returns

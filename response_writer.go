@@ -118,9 +118,7 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, out interface{}) {
 		w.WriteHeader(status)
 		return
 	}
-	cType := "application/json; charset=UTF-8"
 
-	headers := make(map[string]string)
 	if err, ok := out.(error); ok {
 		status = http.StatusInternalServerError
 		var (
@@ -162,18 +160,8 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, out interface{}) {
 		out = errResp
 	}
 
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(status)
-	h := w.Header()
-	foundContentType := false
-	for k, v := range headers {
-		if k == "Content-Type" {
-			foundContentType = true
-		}
-		h.Add(k, v)
-	}
-	if !foundContentType {
-		h.Set("Content-Type", cType)
-	}
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(dw.EscapeJsonHtml)
 	if err := enc.Encode(out); err != nil {
