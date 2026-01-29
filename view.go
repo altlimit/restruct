@@ -31,7 +31,7 @@ type (
 		// Error template to use if view/file not found
 		Error string
 		// Data is a callback to get default data for templates
-		Data func(r *http.Request) map[string]interface{}
+		Data func(r *http.Request) map[string]any
 
 		// Writer to fallback for non-view responses or errors.
 		// If nil, it will use the Handler's writer if available, or default to DefaultWriter.
@@ -374,13 +374,14 @@ func (v *View) getLayoutModTime() (time.Time, error) {
 	return maxTime, nil
 }
 
-func (v *View) viewData(r *http.Request, data interface{}) map[string]interface{} {
-	var viewData map[string]interface{}
+func (v *View) viewData(r *http.Request, data any) map[string]any {
+	var viewData map[string]any
 
 	if v.Data != nil {
 		viewData = v.Data(r)
-	} else {
-		viewData = make(map[string]interface{})
+	}
+	if viewData == nil {
+		viewData = make(map[string]any)
 	}
 
 	viewData["Request"] = r
@@ -391,7 +392,7 @@ func (v *View) viewData(r *http.Request, data interface{}) map[string]interface{
 	}
 
 	// If it's a map, we merge it directly
-	if m, ok := data.(map[string]interface{}); ok {
+	if m, ok := data.(map[string]any); ok {
 		// Copy map so we don't mutate input
 		for k, v := range m {
 			viewData[k] = v
