@@ -309,10 +309,7 @@ func (s *Server) Writer() rs.ResponseWriter {
 
 func (s *Server) Profile(ctx context.Context) any {
 	if rs.Vars(ctx)["0"] == "errors" {
-		return &rs.Error{
-			Status:  http.StatusNotFound,
-			Message: "Profile not found",
-		}
+		return errors.New("sample error")
 	}
 	return map[string]interface{}{
 		"Title":   "Profile",

@@ -411,12 +411,16 @@ func (v *View) viewData(r *http.Request, data any) map[string]any {
 }
 
 func (v *View) render(w http.ResponseWriter, r *http.Request, tmpl *template.Template, name string, data interface{}) {
-
 	v.execute(w, r, tmpl, name, data)
 }
 
 func (v *View) error(w http.ResponseWriter, r *http.Request, err error, data interface{}) {
 	slog.Error("View Error", "error", err, "path", r.URL.Path)
+	status := http.StatusInternalServerError
+	if ee, ok := err.(Error); ok {
+		status = ee.Status
+	}
+
 	// Try to render the Error template if defined
 	var errs []error
 	if v.Error != "" {
@@ -442,6 +446,7 @@ func (v *View) error(w http.ResponseWriter, r *http.Request, err error, data int
 			if d, ok := data.(map[string]interface{}); ok {
 				d["Error"] = err
 			}
+			w.WriteHeader(status)
 			if err2 := errTmpl.ExecuteTemplate(w, v.Error, data); err2 == nil {
 				return
 			} else {
@@ -460,9 +465,11 @@ func (v *View) error(w http.ResponseWriter, r *http.Request, err error, data int
 
 	if len(errs) > 0 {
 		slog.Error("Render Error", "errors", errs, "path", r.URL.Path)
+		status = http.StatusInternalServerError
 	}
 
 	if v.Writer != nil {
+		w.WriteHeader(status)
 		v.Writer.Write(w, r, types, vals)
 	} else {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
