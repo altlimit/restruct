@@ -140,12 +140,13 @@ Handlers can return:
 
 ## Views & Asset Serving
 
-### Viewer Interface
+### Writer Interface
 
-Implement the `Viewer` interface to enable HTML rendering and asset serving for your service. This isolates views to specific services.
+Implement the `Writer` interface to enable HTML rendering and asset serving for your service. This isolates views to specific services.
+Use the included `View` to automatically handle template rendering and asset serving using the file system structure.
 
 ```go
-func (s *MyService) View() *restruct.View {
+func (s *MyService) Writer() *restruct.Writer {
     return &restruct.View{
         FS:    publicFS, // fs.FS interface
         Error: "error.html", // Validation/Error template
