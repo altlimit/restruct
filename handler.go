@@ -63,10 +63,12 @@ type (
 	}
 
 	node struct {
-		children   map[string]*node
-		paramChild *node
-		paramName  string
-		methods    []*method
+		children      map[string]*node
+		paramChild    *node
+		paramName     string
+		wildcardChild *node
+		wildcardName  string
+		methods       []*method
 	}
 
 	paramCache struct {
@@ -88,7 +90,17 @@ func (n *node) insert(parts []string, m *method) {
 	}
 
 	part := parts[0]
-	if len(part) > 2 && part[0] == '{' && part[len(part)-1] == '}' {
+	if len(part) > 3 && part[0] == '{' && part[len(part)-1] == '}' && part[len(part)-2] == '*' {
+		// Wildcard node
+		if n.wildcardChild == nil {
+			n.wildcardChild = &node{
+				children: make(map[string]*node),
+			}
+		}
+		n.wildcardChild.wildcardName = part[1 : len(part)-2]
+		// Wildcards consume the rest, so we attach method here
+		n.wildcardChild.methods = append(n.wildcardChild.methods, m)
+	} else if len(part) > 2 && part[0] == '{' && part[len(part)-1] == '}' {
 		// Parameter node
 		if n.paramChild == nil {
 			n.paramChild = &node{
@@ -114,44 +126,79 @@ func (n *node) insert(parts []string, m *method) {
 }
 
 func (n *node) search(path string, params map[string]string) []*method {
+	// 1. Check if we match the current node and path is done
+	// OR if we have a wildcard child that can consume the rest
 	if path == "" {
 		return n.methods
 	}
 
-	curr := n
-	for {
-		var part string
-		idx := strings.Index(path, "/")
-		if idx == -1 {
-			part = path
-			path = ""
-		} else {
-			part = path[:idx]
-			path = path[idx+1:]
-		}
+	// 2. Check wildcard immediately if we can't consume more
+	// Actually, we should check children first, then param, then wildcard fallback
+	// But wildcard can also match "nothing" if we allow it? usually wildcards match at least something.
+	// In this design, wildcard matching happens when we process a part.
 
-		var next *node
-		if curr.children != nil {
-			next = curr.children[part]
-		}
+	// Keep track of where we could have gone for wildcard fallback
+	// Only the most specific wildcard matters? Or hierarchical?
+	// The search is recursive-like but iterative here.
+	// Implementing backtracking or recursive search is cleaner for priority:
+	// Static > Param > Wildcard
 
-		if next == nil && curr.paramChild != nil {
+	return n.searchRecursive(path, params)
+}
 
-			if curr.paramChild.paramName != "" {
-				params[curr.paramChild.paramName] = part
-			}
-			next = curr.paramChild
-		}
+func (n *node) searchRecursive(path string, params map[string]string) []*method {
+	idx := strings.Index(path, "/")
+	var part string
+	var remainder string
+	var isTerminal bool
 
-		if next == nil {
-			return nil
-		}
-
-		if idx == -1 {
-			return next.methods
-		}
-		curr = next
+	if idx == -1 {
+		part = path
+		isTerminal = true
+	} else {
+		part = path[:idx]
+		remainder = path[idx+1:]
+		isTerminal = false
 	}
+
+	// 1. Static Match
+	if n.children != nil {
+		if child, ok := n.children[part]; ok {
+			if isTerminal {
+				return child.methods
+			}
+			if res := child.searchRecursive(remainder, params); res != nil {
+				return res
+			}
+		}
+	}
+
+	// 2. Param Match
+	if n.paramChild != nil {
+		if isTerminal {
+			if n.paramChild.paramName != "" {
+				params[n.paramChild.paramName] = part
+			}
+			return n.paramChild.methods
+		}
+		// Recurse
+		if res := n.paramChild.searchRecursive(remainder, params); res != nil {
+			if n.paramChild.paramName != "" {
+				params[n.paramChild.paramName] = part
+			}
+			return res
+		}
+	}
+
+	// 3. Wildcard Match
+	if n.wildcardChild != nil {
+		if n.wildcardChild.wildcardName != "" {
+			params[n.wildcardChild.wildcardName] = path
+		}
+		return n.wildcardChild.methods
+	}
+
+	return nil
 }
 
 func (mc *methodCache) methods() (methods []*method) {
@@ -168,6 +215,7 @@ func (mc *methodCache) methods() (methods []*method) {
 			traverse(child)
 		}
 		traverse(n.paramChild)
+		traverse(n.wildcardChild)
 	}
 	traverse(mc.root)
 
@@ -302,7 +350,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// we set path found but still need to match method for proper error return
 	status := http.StatusNotFound
 
-	// Try Trie search first
+	// Try Trie search (now handles static, param, and wildcard routes)
 	if h.cache.root != nil {
 		params := make(map[string]string)
 		methods := h.cache.root.search(path, params)
@@ -314,17 +362,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					_, ok = v.methods[r.Method]
 				}
 				if ok {
-					// Re-extract params using the method's own pathParts
-					// This ensures we get the correct param names for this specific method
-					if v.pathParts != nil && len(params) > 0 {
-						correctParams := extractParamsFromPath(path, v.pathParts)
-						if len(correctParams) > 0 {
-							params = correctParams
+					// Apply params
+					if len(params) > 0 {
+						ctx := r.Context()
+						ctx = context.WithValue(ctx, keyParams, params)
+						// If wildcard param exists, flag it?
+						// We used to set keyIsAny=true.
+						// We can check if any param ends in "*" or is "any"?
+						// The tests might check for "any" param specifically.
+
+						// Legacy support: if we have "any" param, treat as catch-all
+						if _, hasAny := params["any"]; hasAny {
+							ctx = context.WithValue(ctx, keyIsAny, true)
 						}
-					}
-					if len(params) > 0 {
-						ctx := r.Context()
-						ctx = context.WithValue(ctx, keyParams, params)
+
 						ctx = context.WithValue(ctx, keyRoute, v.path)
 						r = r.WithContext(ctx)
 					} else {
@@ -338,82 +389,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			status = http.StatusMethodNotAllowed
 		}
-	}
-
-	// Fallback - paramRoutes are pre-sorted in updateCache
-	var anyMatch *paramCache
-	var anyParams map[string]string
-
-	for _, bp := range h.cache.paramRoutes {
-		if bp.isAny {
-			// Check prefix match
-			// Handle "root" Any (path="") matches anything
-			// Handle "backup" Any (path="backup") matches "backup/..."
-
-			// Exact match or Prefix + /
-			matches := false
-			if bp.path == "" {
-				matches = true
-			} else {
-				if path == bp.path || strings.HasPrefix(path, bp.path+"/") {
-					matches = true
-				}
-			}
-
-			if matches {
-				remainder := strings.TrimPrefix(path, bp.path)
-				remainder = strings.TrimPrefix(remainder, "/")
-				anyParams = map[string]string{"any": remainder}
-
-				val := bp
-				anyMatch = &val
-				break
-			}
-			continue
-		}
-
-		params, ok := matchPath(bp, path)
-		if ok {
-
-			for _, v := range bp.methods {
-				ok := v.methods == nil
-				if !ok {
-					_, ok = v.methods[r.Method]
-				}
-				if ok {
-					if len(params) > 0 {
-						ctx := r.Context()
-						ctx = context.WithValue(ctx, keyParams, params)
-						ctx = context.WithValue(ctx, keyRoute, v.path)
-						r = r.WithContext(ctx)
-					} else {
-						ctx := r.Context()
-						ctx = context.WithValue(ctx, keyRoute, v.path)
-						r = r.WithContext(ctx)
-					}
-					runMethod(v)
-					return
-				}
-			}
-			status = http.StatusMethodNotAllowed
-		}
-	}
-
-	// If no param route matched, check Any
-	if anyMatch != nil && len(anyMatch.methods) > 0 {
-		v := anyMatch.methods[0]
-		// Apply params if any
-		ctx := r.Context()
-		if len(anyParams) > 0 {
-			ctx = context.WithValue(ctx, keyParams, anyParams)
-		}
-		ctx = context.WithValue(ctx, keyIsAny, true)
-		ctx = context.WithValue(ctx, keyRoute, v.path)
-		r = r.WithContext(ctx)
-
-		// Any matches any method usually (unrestricted)
-		runMethod(v)
-		return
 	}
 
 	// Use pre-allocated error values for common cases
@@ -508,26 +483,50 @@ func (h *Handler) updateCache() {
 						basePath = ""
 					}
 				} else {
-					// v.path is lowercase. "Backup_Any" -> "backup/any"
-					basePath = strings.TrimSuffix(basePath, "/any")
-					basePath = strings.TrimSuffix(basePath, "_any")
+					// v.path is lowercase. "Backup_Any" -> "backup/{any*}"
+					basePath = strings.TrimSuffix(basePath, "/{any*}")
+					basePath = strings.TrimSuffix(basePath, "{any*}")
 				}
 
 				// If the path contains parameters (wildcards), we should NOT use "isAny" prefix logic.
 				// We should let matchPath handle it (standard parameter extraction).
 				// Exception: "Root Any" which we canonicalized to "" should use isAny=true.
-				isAny := true
-				if strings.Contains(basePath, "{") {
-					isAny = false
+				// Update: We now support wildcards in Trie! So logic simplifies.
+				// If it's a true wildcard suffix (e.g. {any*}), we put it in Trie.
+				// If it's a global catch-all (isAny=true, path=""), we might still need paramRoutes
+				// or insert it as a root wildcard? root wildcard IS a thing now.
+
+				// Standardize path ending with `{any*}` if implied
+				if v.Name == "Any" && basePath == "" {
+					// Root Any -> treat as {any*} at root?
+					// If we put it in Trie, it's a root wildcard.
+					v.pathParts = []string{"{any*}"}
 				}
 
-				h.cache.paramRoutes = append(h.cache.paramRoutes, paramCache{
-					path:      basePath,
-					pathParts: v.pathParts,
-					methods:   []*method{v},
-					isAny:     isAny,
-				})
-				continue
+				// If it's NOT a global root catch-all, we can put it in the Trie.
+				// If it IS a global root catch-all, `insert` at root level wildcard works too!
+				// So we can remove special paramRoutes handling for these entirely?
+				// There is "isAny" logic used in ServeHTTP.
+				// Let's rely on standard Trie.
+
+				// Re-construct the full path for keying
+				if v.pathParts == nil {
+					// Should have pathParts if it came from serviceToMethods
+				}
+
+				// We just fall through to normal processing!
+				// BUT we need to ensure the path corresponds to what we want: "app/{any*}"
+				// serviceToMethods likely already set v.path to "app/{any*}"
+				// So we don't need to do anything special here unless we want to override something.
+
+				// Actually, earlier code was manually adding to paramRoutes to AVOID Trie.
+				// We want to DELETE all that special logic and let it fall through.
+			}
+
+			if v.Name == "Any" || strings.HasSuffix(v.Name, "_Any") {
+				// Just ensure path parts are correct for wildcard
+				// nameToPath already converts "Any" -> "{any*}" or "App_Any" -> "app/{any*}"
+				// So v.pathParts should be correct.
 			}
 
 			if v.pathParts != nil {
@@ -606,25 +605,7 @@ func (h *Handler) updateCache() {
 		// all of methods here have the same path so we use first one
 		m := pathCache[path][0]
 
-		hasWildcard := false
-		for _, p := range m.pathParts {
-			if len(p) > 2 && p[0] == '{' && p[len(p)-1] == '}' && p[len(p)-2] == '*' {
-				hasWildcard = true
-				break
-			}
-			if p == "{any}" {
-				hasWildcard = true
-				break
-			}
-		}
-
-		if hasWildcard {
-			h.cache.paramRoutes = append(h.cache.paramRoutes, paramCache{
-				path:      path,
-				pathParts: m.pathParts,
-				methods:   pathCache[path],
-			})
-		} else if m.pathParts != nil {
+		if m.pathParts != nil {
 			// Add to Trie
 			if h.cache.root == nil {
 				h.cache.root = &node{

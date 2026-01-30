@@ -271,6 +271,11 @@ func (s *Server) Any(ctx context.Context) any {
 	}
 }
 
+func (s *Server) App_Any(ctx context.Context) any {
+	slog.Info("App Catch All", "any", rs.Vars(ctx)["any"])
+	return "Hello App"
+}
+
 func (v *V1) Backup_Any(ctx context.Context) *rs.Response {
 	return &rs.Response{
 		Status:      http.StatusOK,
