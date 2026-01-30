@@ -83,6 +83,12 @@ func (v *View) Write(w http.ResponseWriter, r *http.Request, types []reflect.Typ
 		data = vals[0].Interface()
 	}
 
+	// Check if the data is actually an error
+	if err, ok := data.(error); ok {
+		v.error(w, r, err, nil)
+		return
+	}
+
 	// If the return content is explicitly a Response struct, then we assume
 	// the user wants the DefaultWriter to handle it (JSON/Raw).
 	// This prevents the View from trying to look up a template for an API response
