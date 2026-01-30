@@ -284,7 +284,7 @@ func (s *Server) Any(ctx context.Context) any {
 	}
 }
 
-func (a *App) Any(ctx context.Context) any {
+func (*App) Any(ctx context.Context) any {
 	slog.Info("App Catch All", "any", rs.Vars(ctx)["any"])
 	return "Hello App"
 }
@@ -297,7 +297,7 @@ func (v *V1) Backup_Any(ctx context.Context) *rs.Response {
 	}
 }
 
-func (s *Server) View() *rs.View {
+func (s *Server) Writer() rs.ResponseWriter {
 	f, _ := fs.Sub(publicFS, "public")
 	return &rs.View{
 		FS:      f,
@@ -308,6 +308,9 @@ func (s *Server) View() *rs.View {
 }
 
 func (s *Server) Profile(ctx context.Context) any {
+	if rs.Vars(ctx)["0"] == "errors" {
+		return errors.New("sample error")
+	}
 	return map[string]interface{}{
 		"Title":   "Profile",
 		"0":       rs.Vars(ctx)["0"],

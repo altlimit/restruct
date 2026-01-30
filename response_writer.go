@@ -39,6 +39,8 @@ type (
 	}
 )
 
+var _ ResponseWriter = (*DefaultWriter)(nil)
+
 // Write implements the DefaultWriter ResponseWriter
 // returning (int, any, error) will write status int, any response if error is nil
 // returning (any, error) will write any response if error is nil with status 200 or 400, 500 depdening on your error

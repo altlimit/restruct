@@ -37,8 +37,8 @@ const (
 type (
 	Middleware func(http.Handler) http.Handler
 
-	Viewer interface {
-		View() *View
+	Writer interface {
+		Writer() ResponseWriter
 	}
 
 	Handler struct {
@@ -468,10 +468,15 @@ func (h *Handler) updateCache() {
 	var orderedPaths []string
 	for k, svc := range h.services {
 		var svcView *View
-		if v, ok := svc.(Viewer); ok {
-			svcView = v.View()
-			// Inject handler's writer to view
-			svcView.Writer = &h.Writer
+		if v, ok := svc.(Writer); ok {
+			wr := v.Writer()
+			if vv, ok := wr.(*View); ok {
+				svcView = vv
+				if svcView.Writer == nil {
+					// Inject handler's writer to view
+					svcView.Writer = h.Writer
+				}
+			}
 		}
 
 		for _, v := range serviceToMethods(k, svc) {

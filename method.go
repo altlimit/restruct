@@ -58,11 +58,11 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 		middlewares = mws.Middlewares()
 		skipMethods["Middlewares"] = true
 	}
-	// Check for Viewer
+	// Check for Writer
 	var writer ResponseWriter
-	if v, ok := svc.(Viewer); ok {
-		writer = v.View()
-		skipMethods["View"] = true
+	if v, ok := svc.(Writer); ok {
+		writer = v.Writer()
+		skipMethods["Writer"] = true
 	}
 
 	tvt := vv.NumMethod()

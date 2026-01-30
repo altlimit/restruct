@@ -35,7 +35,7 @@ type (
 
 		// Writer to fallback for non-view responses or errors.
 		// If nil, it will use the Handler's writer if available, or default to DefaultWriter.
-		Writer *ResponseWriter
+		Writer ResponseWriter
 
 		cache   map[string]*viewCache
 		routes  map[string]string
@@ -456,8 +456,8 @@ func (v *View) error(w http.ResponseWriter, r *http.Request, err error, data int
 		slog.Error("Render Error", "errors", errs, "path", r.URL.Path)
 	}
 
-	if v.Writer != nil && *v.Writer != nil {
-		(*v.Writer).Write(w, r, types, vals)
+	if v.Writer != nil {
+		v.Writer.Write(w, r, types, vals)
 	} else {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
@@ -547,11 +547,11 @@ func (v *View) loadRoutes() {
 }
 
 func (v *View) delegate(w http.ResponseWriter, r *http.Request, types []reflect.Type, vals []reflect.Value) {
-	if v.Writer != nil && *v.Writer != nil {
-		(*v.Writer).Write(w, r, types, vals)
+	if v.Writer != nil {
+		v.Writer.Write(w, r, types, vals)
 	} else {
-		// Fallback simple JSON
-		(&DefaultWriter{}).Write(w, r, types, vals)
+		slog.Warn("No writer found for request", "path", r.URL.Path, "types", types, "vals", vals)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
 
