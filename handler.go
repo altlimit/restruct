@@ -90,6 +90,13 @@ func (n *node) insert(parts []string, m *method) {
 	}
 
 	part := parts[0]
+
+	// empty part means we skip it (e.g. root path or double slash)
+	if part == "" {
+		n.insert(parts[1:], m)
+		return
+	}
+
 	if len(part) > 3 && part[0] == '{' && part[len(part)-1] == '}' && part[len(part)-2] == '*' {
 		// Wildcard node
 		if n.wildcardChild == nil {
@@ -127,22 +134,11 @@ func (n *node) insert(parts []string, m *method) {
 
 func (n *node) search(path string, params map[string]string) []*method {
 	// 1. Check if we match the current node and path is done
-	// OR if we have a wildcard child that can consume the rest
 	if path == "" {
 		return n.methods
 	}
 
-	// 2. Check wildcard immediately if we can't consume more
-	// Actually, we should check children first, then param, then wildcard fallback
-	// But wildcard can also match "nothing" if we allow it? usually wildcards match at least something.
-	// In this design, wildcard matching happens when we process a part.
-
-	// Keep track of where we could have gone for wildcard fallback
-	// Only the most specific wildcard matters? Or hierarchical?
-	// The search is recursive-like but iterative here.
-	// Implementing backtracking or recursive search is cleaner for priority:
-	// Static > Param > Wildcard
-
+	// 2. Recursive search
 	return n.searchRecursive(path, params)
 }
 
@@ -364,6 +360,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if ok {
 					// Apply params
 					if len(params) > 0 {
+						// Re-extract params using the method's own pathParts
+						if v.pathParts != nil {
+							correctParams := extractParamsFromPath(path, v.pathParts)
+							if len(correctParams) > 0 {
+								params = correctParams
+							}
+						}
+
 						ctx := r.Context()
 						ctx = context.WithValue(ctx, keyParams, params)
 						// If wildcard param exists, flag it?

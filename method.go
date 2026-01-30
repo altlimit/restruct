@@ -211,11 +211,10 @@ func nameToPath(name string) string {
 // Populates method fields, if there's no params it will leave pathRe nil and
 // directly compare path with equality.
 func (m *method) mustParse() {
-	if strings.Contains(m.path, "{") && strings.Contains(m.path, "}") {
-		for _, p := range strings.Split(m.path, "/") {
-			if p != "" {
-				m.pathParts = append(m.pathParts, p)
-			}
+	m.pathParts = make([]string, 0)
+	for _, p := range strings.Split(m.path, "/") {
+		if p != "" {
+			m.pathParts = append(m.pathParts, p)
 		}
 	}
 

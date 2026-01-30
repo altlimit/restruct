@@ -36,9 +36,12 @@ type (
 	Blob struct {
 	}
 
-	Server struct {
-		Api V1
+	App struct {
+	}
 
+	Server struct {
+		Api  V1
+		App  App
 		DB   struct{} `route:"-"`
 		docs []string
 	}
@@ -271,7 +274,7 @@ func (s *Server) Any(ctx context.Context) any {
 	}
 }
 
-func (s *Server) App_Any(ctx context.Context) any {
+func (a *App) Any(ctx context.Context) any {
 	slog.Info("App Catch All", "any", rs.Vars(ctx)["any"])
 	return "Hello App"
 }
