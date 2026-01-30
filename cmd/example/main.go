@@ -337,7 +337,11 @@ func (s *Server) Init(h *rs.Handler) {
 	s.docs = h.Routes()
 	// still defaultreader but used our bind to add validation errors
 	h.Reader = &rs.DefaultReader{Bind: s.Api.bind}
-
+	h.Writer = &rs.DefaultWriter{ErrorHandler: func(err error) any {
+		return map[string]interface{}{
+			"message": "internal error",
+		}
+	}}
 	// add middleware
 	h.Use(limitsMiddleware)
 

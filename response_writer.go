@@ -18,8 +18,9 @@ type (
 	// and manages error handling. Adding Errors mapping can
 	// help with your existing error to a proper Error{}
 	DefaultWriter struct {
-		// Optional ErrorHandler, called whenever unhandled errors occurs, defaults to logging errors
-		ErrorHandler   func(error)
+		// Optional ErrorHandler, called whenever unhandled errors occurs
+		// allows you to reformat how you handle error output, return nil to use default error output
+		ErrorHandler   func(error) any
 		Errors         map[error]Error
 		EscapeJsonHtml bool
 	}
@@ -93,13 +94,11 @@ func (dw *DefaultWriter) Write(w http.ResponseWriter, r *http.Request, types []r
 	out = args
 }
 
-func (dw *DefaultWriter) log(err error) {
-	if dw.ErrorHandler == nil {
-		dw.ErrorHandler = func(err error) {
-			slog.Error("InternalError", "error", err)
-		}
+func (dw *DefaultWriter) error(err error) any {
+	if dw.ErrorHandler != nil {
+		return dw.ErrorHandler(err)
 	}
-	dw.ErrorHandler(err)
+	return nil
 }
 
 // This writes application/json content type uses status code 200
@@ -134,6 +133,7 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, out interface{}) {
 				e = ee
 			}
 		}
+		var customErr bool
 		if ok {
 			if e.Status != 0 {
 				status = e.Status
@@ -147,19 +147,30 @@ func (dw *DefaultWriter) WriteJSON(w http.ResponseWriter, out interface{}) {
 			if e.Err != nil {
 				dw.log(e.Err)
 			}
-		} else {
+		} else if dw.ErrorHandler == nil {
 			dw.log(err)
+		} else {
+			if cerr := dw.ErrorHandler(err); cerr != nil {
+				if rsp, ok := cerr.(*Response); ok {
+					dw.WriteResponse(w, rsp)
+					return
+				}
+				out = cerr
+				customErr = true
+			}
 		}
-		if msg == "" {
-			msg = http.StatusText(status)
+		if !customErr {
+			if msg == "" {
+				msg = http.StatusText(status)
+			}
+			errResp := map[string]interface{}{
+				"error": msg,
+			}
+			if errData != nil {
+				errResp["data"] = errData
+			}
+			out = errResp
 		}
-		errResp := map[string]interface{}{
-			"error": msg,
-		}
-		if errData != nil {
-			errResp["data"] = errData
-		}
-		out = errResp
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
@@ -187,4 +198,8 @@ func (dw *DefaultWriter) WriteResponse(w http.ResponseWriter, resp *Response) {
 			dw.log(err)
 		}
 	}
+}
+
+func (dw *DefaultWriter) log(err error) {
+	slog.Error("InternalError", "error", err)
 }
