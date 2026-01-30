@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -95,11 +96,16 @@ func (v *V1) bind(r *http.Request, src interface{}, methods ...string) error {
 	return nil
 }
 
-func (s *Server) Docs() []string {
-	return s.docs
+func (s *Server) Docs() *rs.Response {
+	b, _ := json.Marshal(s.docs)
+	return &rs.Response{
+		Status:      http.StatusOK,
+		ContentType: "application/json",
+		Content:     b,
+	}
 }
 
-func (s *Server) Pages(r *http.Request) (code int, pages []string, err error) {
+func (v *V1) Pages(r *http.Request) (code int, pages []string, err error) {
 	code = http.StatusAccepted
 	pages = append(pages, "hello", "world")
 	if e := r.URL.Query().Get("err"); e != "" {
@@ -255,6 +261,10 @@ func (v *V1) Index(ctx context.Context) any {
 	return map[string]any{
 		"DataFromMethod": "ASD",
 	}
+}
+
+func (v *V1) Any(ctx context.Context) error {
+	return rs.Error{Status: http.StatusNotFound, Message: "API route not found"}
 }
 
 func (s *Server) Test_Any(ctx context.Context) any {

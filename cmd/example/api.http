@@ -6,7 +6,7 @@ GET {{baseUrl}}/docs
 
 ###
 
-GET {{baseUrl}}/pages?err=hello
+GET {{baseUrl}}/api/pages?err=hello
 
 ###
 
