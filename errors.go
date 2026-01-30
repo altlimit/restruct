@@ -1,6 +1,9 @@
 package restruct
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+)
 
 type (
 	Error struct {
@@ -12,12 +15,13 @@ type (
 )
 
 func (e Error) Error() string {
-	var msg string
-	if e.Message != "" {
-		msg = " " + e.Message
+	msg := e.Message
+	status := e.Status
+	if status == 0 {
+		status = http.StatusInternalServerError
 	}
-	if e.Status == 0 {
-		return http.StatusText(http.StatusInternalServerError) + msg
+	if msg == "" {
+		msg = http.StatusText(status)
 	}
-	return http.StatusText(e.Status) + msg
+	return fmt.Sprint(status, " ", msg)
 }

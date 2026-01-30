@@ -319,17 +319,23 @@ func (s *Server) Profile(ctx context.Context) any {
 }
 
 func (s *Server) Work(ctx context.Context) any {
-	return map[string]interface{}{
-		"Title": "Work",
-		"0":     rs.Vars(ctx)["0"],
-		"1":     rs.Vars(ctx)["1"],
+	if rs.Vars(ctx)["0"] == "errors" {
+		return errors.New("sample error")
+	}
+	return &rs.Render{
+		Path: "view/project.html",
+		Data: map[string]interface{}{
+			"Title": "Work",
+			"0":     rs.Vars(ctx)["0"],
+			"1":     rs.Vars(ctx)["1"],
+		},
 	}
 }
 
 func (*Server) Routes() []rs.Route {
 	return []rs.Route{
 		{Handler: "Profile", Path: "{0}"},
-		{Handler: "Work", Path: "{0}/{1}"},
+		{Handler: "Work", Path: "{0}/{1}/{2}"},
 	}
 }
 
