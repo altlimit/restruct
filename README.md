@@ -16,10 +16,12 @@
 * [Request & Response](#request--response)
     * [Binding & Validation](#binding--validation)
     * [Response Writers](#response-writers)
-* [Views & Asset Serving](#views--asset-serving)
-    * [Viewer Interface](#viewer-interface)
+* [Views & Template Rendering](#views--template-rendering)
+    * [Writer Interface](#writer-interface)
     * [Using embed.FS](#using-embedfs)
+    * [Explicit Template Rendering](#explicit-template-rendering)
 * [Middleware](#middleware)
+* [Context Values](#context-values)
 * [Benchmarks](#benchmarks)
 * [License](#license)
 
@@ -27,11 +29,11 @@
 
 ## Key Features
 
-*   **Struct-Based Routing**: Exported methods are automatically mapped to routes.
+*   **Struct-Based Routing**: Exported methods are automatically mapped to routes via a Trie-based router.
 *   **Hierarchical Services**: Nest structs to create path hierarchies (e.g., `/api/v1/...`).
-*   **Smart Binding**: Auto-bind JSON, Form, and Query parameters to struct arguments.
-*   **Interface Driven**: Customize behavior via `Router`, `Viewer`, `Init`, and `Middlewares` interfaces.
-*   **View Engine**: Integrated minimal view engine with support for `fs.FS` and error page fallbacks.
+*   **Smart Binding**: Auto-bind JSON, Form, Query, and Multipart parameters to struct arguments.
+*   **Interface Driven**: Customize behavior via `Router`, `Writer`, `Init`, and `Middlewares` interfaces.
+*   **View Engine**: Integrated template engine with `fs.FS` support, layout templates, and error page fallbacks.
 *   **Zero-Boilerplate**: Focus on business logic, let the framework handle the plumbing.
 
 ## Install
@@ -78,28 +80,36 @@ Any exported struct can be a service. Public methods become endpoints.
 *   `func (s *Svc) Users_0()` -> `/users/{0}`
 *   `func (s *Svc) UsersExport()` -> `/users-export`
 *   `func (s *Svc) Any()` -> `/{any*}` (Wildcard catch-all)
+*   `func (s *Svc) Files_Any()` -> `/files/{any*}` (Scoped wildcard)
 
 ### Routing & Parameters
 
 You can define path parameters and wildcards using special method naming conventions or the `Router` interface.
 
 **Method Naming**:
-*   `Find_0_User` -> `/find/{blobID}/user` (where 0 maps to the first variable)
+*   `Find_0_User` -> `/find/{0}/user` (path parameter)
 *   `Files_Any` -> `/files/{any*}` (Wildcard catch-all)
 
 **Explicit Routing (`Router` Interface)**:
-Recommended for cleaner method names.
+Recommended for cleaner method names and explicit HTTP method restrictions.
 
 ```go
-func (s *Service) Routes() []restruct.Route {
+func (u *User) Routes() []restruct.Route {
     return []restruct.Route{
-        {Handler: "Download", Path: "files/{id}", Methods: []string{"GET"}},
-        {Handler: "Upload", Path: "files", Methods: []string{"POST"}},
+        {Handler: "CreateUser", Path: ".", Methods: []string{"POST"}},
+        {Handler: "ReadUser", Path: "{id}", Methods: []string{"GET"}},
+        {Handler: "UpdateUser", Path: "{id}", Methods: []string{"PUT"}},
+        {Handler: "DeleteUser", Path: "{id}", Methods: []string{"DELETE"}},
     }
 }
 ```
 
-Path parameters can be accessed via `restruct.Params(r)["id"]`.
+*   `Path: "."` maps to the service root path (useful for CRUD on collection endpoints).
+*   Omitting `Path` uses the default naming convention.
+*   Omitting `Methods` allows all HTTP methods.
+*   `Middlewares` on a Route applies per-route middleware.
+
+Path parameters can be accessed via `restruct.Params(r)["id"]` or `restruct.Vars(ctx)["id"]`.
 
 ### Nested Services
 
@@ -109,6 +119,7 @@ Services can be nested to create API versions or groups.
 type Server struct {
     ApiV1 V1 `route:"api/v1"` // Mounts V1 at /api/v1
     Admin AdminService `route:"admin"`
+    DB    struct{} `route:"-"` // Ignored
 }
 ```
 
@@ -116,46 +127,70 @@ type Server struct {
 
 ### Binding & Validation
 
-`restruct` binds request data (JSON body, Form data, Query params) to method arguments automatically. You can extend the default binder to add validation (e.g., using `go-playground/validator`).
+`restruct` binds request data (JSON body, Form data, Query params) to method arguments automatically via the `RequestReader` interface. The `DefaultReader` dispatches to the `Bind` function which supports:
+
+*   `application/json` -> `BindJson` (uses `json` struct tag)
+*   `application/x-www-form-urlencoded` / `multipart/form-data` -> `BindForm` (uses `form` struct tag)
+*   Query parameters -> `BindQuery` (uses `query` struct tag)
+
+You can extend the `DefaultReader` with a custom `Bind` function to add validation (e.g., using `go-playground/validator`):
 
 ```go
-type CreateRequest struct {
-    Email string `json:"email" validate:"required,email"`
-}
-
-func (s *Service) Create(r *http.Request, req CreateRequest) error {
-    // req is already bound and valid (if custom binder set up)
-    return nil
+func (s *Server) Init(h *restruct.Handler) {
+    h.Reader = &restruct.DefaultReader{
+        Bind: func(r *http.Request, out interface{}, methods ...string) error {
+            if err := restruct.Bind(r, out, methods...); err != nil {
+                return err
+            }
+            return validate.Struct(out)
+        },
+    }
 }
 ```
 
 ### Response Writers
 
+The `ResponseWriter` interface controls how handler return values are written to the response.
+
 Handlers can return:
-*   `struct` / `map` / `slice`: Encoded as JSON by default.
+*   `struct` / `map` / `slice`: Encoded as JSON by `DefaultWriter`.
 *   `string` / `[]byte`: Sent as raw response.
 *   `error`: Converted to appropriate HTTP error status.
-*   `*restruct.Response`: Complete control over Status, Headers, and Content.
+*   `*restruct.Response`: Complete control over Status, Headers, ContentType, and Content bytes.
+*   `*restruct.Json`: JSON response with a custom status code (e.g., `restruct.Json{Status: 201, Content: obj}`).
 *   `*restruct.Render`: Force rendering a specific template path (see [Explicit Template Rendering](#explicit-template-rendering)).
+*   `(int, any, error)`: Status code, response body, and error.
+*   `(any, error)`: Response body with error handling.
 
-## Views & Asset Serving
+The `DefaultWriter` supports:
+*   `ErrorHandler func(error) any` — Custom error formatting. Return `*restruct.Response` for full control.
+*   `Errors map[error]Error` — Map known errors to custom HTTP statuses/messages.
+*   `EscapeJsonHtml bool` — Control HTML escaping in JSON output.
+
+## Views & Template Rendering
 
 ### Writer Interface
 
-Implement the `Writer` interface to enable HTML rendering and asset serving for your service. This isolates views to specific services.
-Use the included `View` to automatically handle template rendering and asset serving using the file system structure.
+Implement the `Writer` interface to enable HTML rendering and asset serving for your service. This associates a `ResponseWriter` (typically a `*View`) with the service.
 
 ```go
-func (s *MyService) Writer() *restruct.Writer {
+func (s *Server) Writer() restruct.ResponseWriter {
     return &restruct.View{
-        FS:    publicFS, // fs.FS interface
-        Error: "error.html", // Validation/Error template
+        FS:      publicFS,                         // fs.FS interface
+        Funcs:   template.FuncMap{"upper": strings.ToUpper},
+        Skips:   regexp.MustCompile("^layout"),    // Skip layout files from routing
+        Layouts: []string{"layout/*.html"},        // Layout template patterns
+        Error:   "error.html",                     // Error page template
+        Data: func(r *http.Request) map[string]any {
+            return map[string]any{"SiteName": "My Site"}
+        },
     }
 }
 ```
 
 *   If a method returns a struct/map, `restruct` first checks for a matching template (e.g., `index.html` for `Index` method).
-*   If no template is found, it falls back to the configured `Error` template (if `Any` route matched) or JSON/DefaultWriter (if specific route matched).
+*   If no template is found, it delegates to the fallback `Writer` or falls back to JSON.
+*   Templates receive `{{.Request}}`, path parameters, handler return data, and data from the `Data` callback.
 
 ### Using embed.FS
 
@@ -165,7 +200,7 @@ You can easily serve embedded assets.
 //go:embed public
 var publicFS embed.FS
 
-func (s *Server) View() *restruct.View {
+func (s *Server) Writer() restruct.ResponseWriter {
     sub, _ := fs.Sub(publicFS, "public")
     return &restruct.View{
         FS: sub,
@@ -195,16 +230,63 @@ func (s *Service) Dashboard(ctx context.Context) (*restruct.Render, error) {
 ```
 
 *   `Path`: Template path relative to the View's FS root.
-*   `Data`: Data passed to the template (accessible as `.Data` or merged if map).
+*   `Data`: Data passed to the template (merged if `map[string]any`, otherwise accessible as `{{.Data}}`).
 
 ## Middleware
 
-Middleware can be applied globally, per-service, or per-route.
+Middleware can be applied globally, per-service, or per-route using the standard `func(http.Handler) http.Handler` signature.
 
 ```go
-func (s *Service) Init(h *restruct.Handler) {
+func (s *Server) Init(h *restruct.Handler) {
+    h.Use(restruct.Recovery) // Built-in panic recovery middleware
     h.Use(loggingMiddleware)
-    h.Use(authMiddleware)
+}
+```
+
+**Per-service middleware** via the `Middlewares` interface:
+```go
+func (b *Blob) Middlewares() []restruct.Middleware {
+    return []restruct.Middleware{loggerMiddleware}
+}
+```
+
+**Per-route middleware** via the Route struct:
+```go
+{Handler: "Upload", Middlewares: []restruct.Middleware{authMiddleware}}
+```
+
+**Built-in**: `restruct.Recovery` — Panic recovery middleware that logs the stack trace and returns a 500 error.
+
+## Context Values
+
+Store and retrieve values in the request context (useful for passing data from middleware to handlers):
+
+```go
+// Using *http.Request
+r = restruct.SetValue(r, "userID", int64(1))
+userID := restruct.GetValue(r, "userID").(int64)
+allVals := restruct.GetValues(r) // map[string]interface{}
+
+// Using context.Context
+ctx = restruct.SetVal(ctx, "key", value)
+val := restruct.GetVal(ctx, "key")
+allVals := restruct.GetVals(ctx) // map[string]interface{}
+```
+
+## Handler Setup
+
+```go
+// Register on http.DefaultServeMux
+restruct.Handle("/api/", &MyService{})
+
+// Or create a Handler for use with custom routers
+h := restruct.NewHandler(&MyService{})
+h.WithPrefix("/api/")
+h.AddService("extra/", &ExtraService{})
+
+// List all registered routes (useful for debugging)
+for _, route := range h.Routes() {
+    fmt.Println(route)
 }
 ```
 
