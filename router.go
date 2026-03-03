@@ -20,8 +20,10 @@ type (
 
 	// Route for doing overrides with router interface and method restrictions.
 	Route struct {
-		// Handler is the method name you want to use for this route
-		Handler string
+		// Handler is the method name (string) or a func to use for this route.
+		// If string, it maps to the struct method by name.
+		// If func, it is used directly as the handler.
+		Handler any
 		// optional path, will use default behaviour if not present
 		Path string
 		// optional methods, will allow all if not present

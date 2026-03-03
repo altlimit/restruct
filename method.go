@@ -5,6 +5,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"reflect"
+	"runtime"
 	"strings"
 	"unicode"
 )
@@ -44,12 +45,6 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 	// get methods first
 	routes := make(map[string][]Route)
 	skipMethods := map[string]bool{}
-	if router, ok := svc.(Router); ok {
-		for _, route := range router.Routes() {
-			routes[route.Handler] = append(routes[route.Handler], route)
-		}
-		skipMethods["Routes"] = true
-	}
 	if _, ok := svc.(Init); ok {
 		skipMethods["Init"] = true
 	}
@@ -63,6 +58,45 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 	if v, ok := svc.(Writer); ok {
 		writer = v.Writer()
 		skipMethods["Writer"] = true
+	}
+	var funcMethods []*method
+	if router, ok := svc.(Router); ok {
+		for _, route := range router.Routes() {
+			switch h := route.Handler.(type) {
+			case string:
+				routes[h] = append(routes[h], route)
+			default:
+				rv := reflect.ValueOf(h)
+				if rv.Kind() != reflect.Func {
+					panic("Route.Handler must be a string or func")
+				}
+				loc := runtime.FuncForPC(rv.Pointer()).Name()
+				m := &method{
+					Name:        loc,
+					location:    loc,
+					source:      rv,
+					middlewares: middlewares,
+					writer:      writer,
+				}
+				m.middlewares = append(m.middlewares, route.Middlewares...)
+				if route.Path != "" {
+					if route.Path == "." {
+						m.path = strings.TrimRight(prefix, "/")
+					} else {
+						m.path = prefix + strings.TrimLeft(route.Path, "/")
+					}
+				}
+				if len(route.Methods) > 0 {
+					m.methods = make(map[string]bool)
+					for _, method := range route.Methods {
+						m.methods[method] = true
+					}
+				}
+				m.mustParse()
+				funcMethods = append(funcMethods, m)
+			}
+		}
+		skipMethods["Routes"] = true
 	}
 
 	tvt := vv.NumMethod()
@@ -151,6 +185,7 @@ func serviceToMethods(prefix string, svc interface{}) (methods []*method) {
 			}
 		}
 	}
+	methods = append(methods, funcMethods...)
 	return
 }
 

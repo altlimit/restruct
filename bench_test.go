@@ -17,8 +17,8 @@ type testService3 struct{}
 
 func (ts *testService3) Hello(r *http.Request) {}
 
-func (ts *testService3) Routes() map[string]Route {
-	return map[string]Route{"Hello": {Path: "{v1}/{v2}/{v3}/{v4}/{v5}"}}
+func (ts *testService3) Routes() []Route {
+	return []Route{{Handler: "Hello", Path: "{v1}/{v2}/{v3}/{v4}/{v5}"}}
 }
 
 type testService4 struct{}
@@ -27,8 +27,8 @@ func (ts *testService4) Hello(r *http.Request)   {}
 func (ts *testService4) Hello_0(r *http.Request) {}
 func (ts *testService4) World(r *http.Request)   {}
 
-func (ts *testService4) Routes() map[string]Route {
-	return map[string]Route{"Hello": {Path: "tags/{tag:.+}"}}
+func (ts *testService4) Routes() []Route {
+	return []Route{{Handler: "Hello", Path: "tags/{tag:.+}"}}
 }
 
 // goos: linux

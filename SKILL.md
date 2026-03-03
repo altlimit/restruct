@@ -43,10 +43,12 @@ Method names are automatically converted to route paths:
 ### Explicit Routing (`Router` interface)
 Implement the `Routes() []rs.Route` method on your struct to explicitly define routes, HTTP methods, and per-route middleware.
 
+`Handler` accepts a **string** (method name) or a **func** (used directly):
+
 ```go
 func (u *User) Routes() []rs.Route {
     return []rs.Route{
-        {Handler: "CreateUser", Path: ".", Methods: []string{http.MethodPost}},
+        {Handler: u.CreateUser, Path: ".", Methods: []string{http.MethodPost}},
         {Handler: "ReadUser", Path: "{id}", Methods: []string{http.MethodGet}},
         {Handler: "UpdateUser", Path: "{id}", Methods: []string{http.MethodPut}},
         {Handler: "DeleteUser", Path: "{id}", Methods: []string{http.MethodDelete}},
@@ -54,6 +56,8 @@ func (u *User) Routes() []rs.Route {
 }
 ```
 
+- `Handler: "MethodName"` — Resolves to the struct method by name.
+- `Handler: u.MethodName` or `Handler: myFunc` — Uses the func directly (same signature rules as regular handlers).
 - `Path: "."` maps to the service root (e.g., `POST /users` instead of `POST /users/create-user`).
 - `Path: "{id}"` adds a parameter segment.
 - Omitting `Path` uses the default naming convention for the handler method name.

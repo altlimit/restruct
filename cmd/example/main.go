@@ -232,9 +232,9 @@ func (u *User) Login(login struct {
 }
 
 // CRUD api with POST on api/v1/users and GET,PUT,DELETE on api/v1/users/{id}
-func (*User) Routes() []rs.Route {
+func (u *User) Routes() []rs.Route {
 	return []rs.Route{
-		{Handler: "CreateUser", Path: ".", Methods: []string{http.MethodPost}},
+		{Handler: u.CreateUser, Path: ".", Methods: []string{http.MethodPost}},
 		{Handler: "ReadUser", Path: "{id}", Methods: []string{http.MethodGet}},
 		{Handler: "UpdateUser", Path: "{id}", Methods: []string{http.MethodPut}},
 		{Handler: "DeleteUser", Path: "{id}", Methods: []string{http.MethodDelete}},

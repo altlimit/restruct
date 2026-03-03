@@ -93,10 +93,12 @@ You can define path parameters and wildcards using special method naming convent
 **Explicit Routing (`Router` Interface)**:
 Recommended for cleaner method names and explicit HTTP method restrictions.
 
+`Handler` accepts a **string** (method name) or a **func** (used directly):
+
 ```go
 func (u *User) Routes() []restruct.Route {
     return []restruct.Route{
-        {Handler: "CreateUser", Path: ".", Methods: []string{"POST"}},
+        {Handler: u.CreateUser, Path: ".", Methods: []string{"POST"}},
         {Handler: "ReadUser", Path: "{id}", Methods: []string{"GET"}},
         {Handler: "UpdateUser", Path: "{id}", Methods: []string{"PUT"}},
         {Handler: "DeleteUser", Path: "{id}", Methods: []string{"DELETE"}},
@@ -104,6 +106,8 @@ func (u *User) Routes() []restruct.Route {
 }
 ```
 
+*   `Handler: "MethodName"` — Resolves to the struct method by name.
+*   `Handler: u.MethodName` or `Handler: myFunc` — Uses the func directly.
 *   `Path: "."` maps to the service root path (useful for CRUD on collection endpoints).
 *   Omitting `Path` uses the default naming convention.
 *   Omitting `Methods` allows all HTTP methods.
