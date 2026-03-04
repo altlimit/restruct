@@ -59,3 +59,31 @@ func TestGetSetVals(t *testing.T) {
 		t.Errorf("X %v %v", x, ok)
 	}
 }
+
+func TestSetVars(t *testing.T) {
+	ctx := context.Background()
+	params := map[string]string{"id": "42", "slug": "hello-world"}
+	ctx = SetVars(ctx, params)
+	got := Vars(ctx)
+	if got["id"] != "42" {
+		t.Errorf("Want id=42, got %v", got["id"])
+	}
+	if got["slug"] != "hello-world" {
+		t.Errorf("Want slug=hello-world, got %v", got["slug"])
+	}
+	// empty context should return empty map
+	empty := Vars(context.Background())
+	if len(empty) != 0 {
+		t.Errorf("Want empty map, got %v", empty)
+	}
+}
+
+func TestSetParams(t *testing.T) {
+	r, _ := http.NewRequest("GET", "/test/42", nil)
+	params := map[string]string{"id": "42"}
+	r = SetParams(r, params)
+	got := Params(r)
+	if got["id"] != "42" {
+		t.Errorf("Want id=42, got %v", got["id"])
+	}
+}

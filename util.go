@@ -36,6 +36,18 @@ func Vars(ctx context.Context) map[string]string {
 	return map[string]string{}
 }
 
+// SetVars returns a new context with the given route params set.
+// Useful for testing handlers that read route parameters via Vars.
+func SetVars(ctx context.Context, params map[string]string) context.Context {
+	return context.WithValue(ctx, keyParams, params)
+}
+
+// SetParams returns a new request with the given route params set.
+// Useful for testing handlers that read route parameters via Params.
+func SetParams(r *http.Request, params map[string]string) *http.Request {
+	return r.WithContext(SetVars(r.Context(), params))
+}
+
 // Query returns a query string value
 func Query(r *http.Request, name string) string {
 	return r.URL.Query().Get(name)
