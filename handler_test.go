@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	rs "github.com/altlimit/restruct"
 )
@@ -247,6 +248,81 @@ func TestHandler(t *testing.T) {
 		}
 		if res.StatusCode != 404 && res.StatusCode != 405 {
 			runs++
+		}
+	}
+}
+
+// Test structs for nested view route registration
+
+type ViewApp struct {
+	viewFS fstest.MapFS
+}
+
+func (a *ViewApp) Writer() rs.ResponseWriter {
+	return &rs.View{FS: a.viewFS}
+}
+
+func (a *ViewApp) Any() *rs.Render {
+	return &rs.Render{Path: "index.html"}
+}
+
+type ViewServer struct {
+	App *ViewApp
+}
+
+func (s *ViewServer) Index() string {
+	return "root"
+}
+
+func TestNestedStructViewRoutes(t *testing.T) {
+	viewFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("SPA Index"),
+		},
+		"style.css": &fstest.MapFile{
+			Data: []byte("body{color:red}"),
+		},
+		"app.js": &fstest.MapFile{
+			Data: []byte("console.log('hello')"),
+		},
+	}
+
+	server := &ViewServer{
+		App: &ViewApp{viewFS: viewFS},
+	}
+	h := rs.NewHandler(server)
+
+	tests := []struct {
+		path       string
+		wantBody   string
+		wantStatus int
+	}{
+		// Root server index
+		{"/", `"root"`, 200},
+		// Nested view static files should be served directly
+		{"/app/style.css", "body{color:red}", 200},
+		{"/app/app.js", "console.log('hello')", 200},
+		// Nested view index via direct route
+		{"/app/", "SPA Index", 200},
+		// Unknown path under /app/ should hit Any() -> renders index.html
+		{"/app/unknown/path", "SPA Index", 200},
+	}
+
+	for _, tc := range tests {
+		req := httptest.NewRequest("GET", tc.path, nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+
+		res := w.Result()
+		data, _ := ioutil.ReadAll(res.Body)
+		res.Body.Close()
+		body := strings.TrimRight(string(data), "\n")
+
+		if res.StatusCode != tc.wantStatus {
+			t.Errorf("path %s: want status %d, got %d", tc.path, tc.wantStatus, res.StatusCode)
+		}
+		if body != tc.wantBody {
+			t.Errorf("path %s: want body %q, got %q", tc.path, tc.wantBody, body)
 		}
 	}
 }

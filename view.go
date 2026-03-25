@@ -37,6 +37,7 @@ type (
 		// If nil, it will use the Handler's writer if available, or default to DefaultWriter.
 		Writer ResponseWriter
 
+		prefix  string // service route prefix, set by Handler for nested struct views
 		cache   map[string]*viewCache
 		routes  map[string]string
 		cacheMu sync.RWMutex
@@ -106,6 +107,10 @@ func (v *View) Write(w http.ResponseWriter, r *http.Request, types []reflect.Typ
 	}
 
 	urlPath := strings.TrimPrefix(r.URL.Path, "/")
+	// Strip service prefix for nested struct views
+	if v.prefix != "" {
+		urlPath = strings.TrimPrefix(urlPath, v.prefix)
+	}
 	if urlPath == "" {
 		urlPath = "index.html"
 	}
@@ -142,8 +147,12 @@ func (v *View) Write(w http.ResponseWriter, r *http.Request, types []reflect.Typ
 	// Check if we have a route pattern in context
 	var routeMatch string
 	if route, ok := r.Context().Value(keyRoute).(string); ok {
+		routeKey := strings.TrimPrefix(route, "/")
+		if v.prefix != "" {
+			routeKey = strings.TrimPrefix(routeKey, v.prefix)
+		}
 		v.cacheMu.RLock()
-		if fName, ok := v.routes[strings.TrimPrefix(route, "/")]; ok {
+		if fName, ok := v.routes[routeKey]; ok {
 			routeMatch = fName
 		}
 		v.cacheMu.RUnlock()

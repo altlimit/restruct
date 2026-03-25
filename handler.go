@@ -81,6 +81,11 @@ type (
 	wrappedHandler struct {
 		handler http.Handler
 	}
+
+	viewInfo struct {
+		prefix string
+		view   *View
+	}
 )
 
 func (n *node) insert(parts []string, m *method) {
@@ -228,7 +233,52 @@ func (wh *wrappedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wh.handler.ServeHTTP(w, r)
 }
 
-// SetView sets the view for the handler and updates the cache
+// discoverViews recursively walks a service's struct fields to find all
+// nested services that implement the Writer interface and return a *View.
+func discoverViews(prefix string, svc interface{}) []viewInfo {
+	var views []viewInfo
+
+	if v, ok := svc.(Writer); ok {
+		wr := v.Writer()
+		if vv, ok := wr.(*View); ok {
+			views = append(views, viewInfo{prefix: prefix, view: vv})
+		}
+	}
+
+	tv := reflect.TypeOf(svc)
+	vv := reflect.ValueOf(svc)
+	if tv.Kind() == reflect.Ptr {
+		tv = tv.Elem()
+		vv = vv.Elem()
+	}
+
+	for i := 0; i < vv.NumField(); i++ {
+		f := tv.Field(i)
+		if f.PkgPath != "" {
+			continue
+		}
+		route := f.Tag.Get("route")
+		if route == "-" {
+			continue
+		}
+		fk := f.Type.Kind()
+		fv := vv.Field(i)
+		if fk == reflect.Ptr {
+			fk = f.Type.Elem().Kind()
+			fv = fv.Elem()
+		}
+		if fk == reflect.Struct && fv.IsValid() {
+			if route == "" {
+				route = nameToPath(f.Name)
+			}
+			route = strings.Trim(route, "/") + "/"
+			sv := fv.Addr().Interface()
+			views = append(views, discoverViews(prefix+route, sv)...)
+		}
+	}
+
+	return views
+}
 
 // NewHandler creates a handler for a given struct.
 func NewHandler(svc interface{}) *Handler {
@@ -467,24 +517,18 @@ func (h *Handler) updateCache() {
 	// we store ordered paths so it's still looked up in order you enter it
 	var orderedPaths []string
 	for k, svc := range h.services {
-		var svcView *View
-		if v, ok := svc.(Writer); ok {
-			wr := v.Writer()
-			if vv, ok := wr.(*View); ok {
-				svcView = vv
-				if svcView.Writer == nil {
-					// Inject handler's writer to view
-					svcView.Writer = h.Writer
-				}
+		// Discover all views including from nested structs
+		allViews := discoverViews(k, svc)
+		for _, vi := range allViews {
+			if vi.view.Writer == nil {
+				vi.view.Writer = h.Writer
 			}
+			vi.view.prefix = vi.prefix
 		}
 
 		for _, v := range serviceToMethods(k, svc) {
 
 			if v.Name == "Any" || strings.HasSuffix(v.Name, "_Any") {
-				// Any is a catch-all. Capture path minus "any"
-				// For "Any", path is empty (relative to service) or "{any*}".
-				// For "Backup_Any", path is "backup/any".
 				basePath := v.path
 				if v.Name == "Any" {
 					basePath = strings.TrimSuffix(basePath, "any")
@@ -492,50 +536,13 @@ func (h *Handler) updateCache() {
 						basePath = ""
 					}
 				} else {
-					// v.path is lowercase. "Backup_Any" -> "backup/{any*}"
 					basePath = strings.TrimSuffix(basePath, "/{any*}")
 					basePath = strings.TrimSuffix(basePath, "{any*}")
 				}
 
-				// If the path contains parameters (wildcards), we should NOT use "isAny" prefix logic.
-				// We should let matchPath handle it (standard parameter extraction).
-				// Exception: "Root Any" which we canonicalized to "" should use isAny=true.
-				// Update: We now support wildcards in Trie! So logic simplifies.
-				// If it's a true wildcard suffix (e.g. {any*}), we put it in Trie.
-				// If it's a global catch-all (isAny=true, path=""), we might still need paramRoutes
-				// or insert it as a root wildcard? root wildcard IS a thing now.
-
-				// Standardize path ending with `{any*}` if implied
 				if v.Name == "Any" && basePath == "" {
-					// Root Any -> treat as {any*} at root?
-					// If we put it in Trie, it's a root wildcard.
 					v.pathParts = []string{"{any*}"}
 				}
-
-				// If it's NOT a global root catch-all, we can put it in the Trie.
-				// If it IS a global root catch-all, `insert` at root level wildcard works too!
-				// So we can remove special paramRoutes handling for these entirely?
-				// There is "isAny" logic used in ServeHTTP.
-				// Let's rely on standard Trie.
-
-				// Re-construct the full path for keying
-				if v.pathParts == nil {
-					// Should have pathParts if it came from serviceToMethods
-				}
-
-				// We just fall through to normal processing!
-				// BUT we need to ensure the path corresponds to what we want: "app/{any*}"
-				// serviceToMethods likely already set v.path to "app/{any*}"
-				// So we don't need to do anything special here unless we want to override something.
-
-				// Actually, earlier code was manually adding to paramRoutes to AVOID Trie.
-				// We want to DELETE all that special logic and let it fall through.
-			}
-
-			if v.Name == "Any" || strings.HasSuffix(v.Name, "_Any") {
-				// Just ensure path parts are correct for wildcard
-				// nameToPath already converts "Any" -> "{any*}" or "App_Any" -> "app/{any*}"
-				// So v.pathParts should be correct.
 			}
 
 			if v.pathParts != nil {
@@ -549,12 +556,10 @@ func (h *Handler) updateCache() {
 			}
 		}
 
-		if svcView != nil {
+		// Register view routes for all discovered views
+		for _, vi := range allViews {
+			svcView := vi.view
 			viewRoutes := svcView.Routes()
-			// Create base method for view
-			// We need to construct a dummy method that invokes View.Serve (or similar)
-			// But since we removed global h.View, we need to locate "Serve" on the View instance?
-			// svcView is *rs.View. It has Serve() method.
 			viewMethod := &method{
 				source: reflect.ValueOf(svcView).MethodByName("Serve"),
 				writer: svcView,
@@ -568,32 +573,15 @@ func (h *Handler) updateCache() {
 					r = strings.TrimPrefix(r, "/")
 				}
 
-				// The routes from View are generally root-relative or service-relative?
-				// User wants "applies to the routes of the service".
-				// IF service is mounted at root, View routes are root.
-				// If service mounted at /api, View routes (e.g. index.html) -> /api/index.html?
-				// View.Routes() returns relative paths from FS root.
-				// Preserving prefix logic:
-				// If prefix is "/", fullPath = r.
-				// If prefix is "/api", fullPath = "api/" + r.
-				// `serviceToMethods` uses `k` (prefix)?
-				// But we are outside `serviceToMethods`.
-				// `k` is the key? No, `k` is key in map?
-				// Iterate `h.services` map[string]interface{}. Key is prefix?
-				// Yes, `serviceToMethods(k, svc)`. `k` is prefix.
-
 				fullPath := r
-				if k != "" && k != "/" {
-					fullPath = strings.TrimRight(k, "/") + "/" + r
+				if vi.prefix != "" && vi.prefix != "/" {
+					fullPath = strings.TrimRight(vi.prefix, "/") + "/" + r
 				}
 
-				// Check if already exists
 				_, existingInCache := pathCache[fullPath]
 				_, existingInByPath := h.cache.byPath[fullPath]
 				if !existingInCache && !existingInByPath {
 					orderedPaths = append(orderedPaths, fullPath)
-
-					// Clone method with specific path
 					m := &method{
 						source:  viewMethod.source,
 						path:    fullPath,
@@ -602,9 +590,6 @@ func (h *Handler) updateCache() {
 						writer:  svcView,
 					}
 					m.mustParse()
-					// Check if path has params (e.g. /posts/{id}.html - unlikely from FS)
-					// FS paths usually static. Unless we treat some files as templates param?
-					// Currently assuming static.
 					pathCache[fullPath] = []*method{m}
 				}
 			}
