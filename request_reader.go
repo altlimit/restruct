@@ -31,25 +31,31 @@ func (dr *DefaultReader) Read(r *http.Request, types []reflect.Type) (vals []ref
 		return
 	}
 
-	// if types is just 1 and a struct, we simply Bind and return
-	if typeLen == 1 && (types[0].Kind() == reflect.Struct ||
-		types[0].Kind() == reflect.Ptr && types[0].Elem().Kind() == reflect.Struct) {
-		var ptr bool
-		arg := types[0]
-		if arg.Kind() == reflect.Ptr {
-			arg = arg.Elem()
-			ptr = true
+	// if types is just 1 and a struct/map/slice, we simply Bind and return
+	if typeLen == 1 {
+		kind := types[0].Kind()
+		elemKind := kind
+		if kind == reflect.Ptr {
+			elemKind = types[0].Elem().Kind()
 		}
-		val := reflect.New(arg)
-		err = dr.Bind(r, val.Interface())
-		if err != nil {
+		if elemKind == reflect.Struct || elemKind == reflect.Map || elemKind == reflect.Slice {
+			var ptr bool
+			arg := types[0]
+			if arg.Kind() == reflect.Ptr {
+				arg = arg.Elem()
+				ptr = true
+			}
+			val := reflect.New(arg)
+			err = dr.Bind(r, val.Interface())
+			if err != nil {
+				return
+			}
+			if !ptr {
+				val = val.Elem()
+			}
+			vals[0] = val
 			return
 		}
-		if !ptr {
-			val = val.Elem()
-		}
-		vals[0] = val
-		return
 	}
 	// otherwise we get request body as json array
 	badRequest := func(s string, f ...interface{}) {

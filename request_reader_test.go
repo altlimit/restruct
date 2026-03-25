@@ -33,6 +33,27 @@ func (ss *sampleService) Add2(ctx context.Context, r *addRequest) (int64, error)
 	return r.A + r.B, nil
 }
 
+func (ss *sampleService) SaveMap(data map[string]any) map[string]any {
+	return data
+}
+
+func (ss *sampleService) SaveSlice(data []int64) int64 {
+	var total int64
+	for _, v := range data {
+		total += v
+	}
+	return total
+}
+
+type searchRequest struct {
+	Q    string `json:"q" query:"q"`
+	Page int    `json:"page" query:"page"`
+}
+
+func (ss *sampleService) Search(r searchRequest) map[string]any {
+	return map[string]any{"q": r.Q, "page": r.Page}
+}
+
 func TestDefaultReaderRead(t *testing.T) {
 	h := restruct.NewHandler(&sampleService{})
 
@@ -69,3 +90,83 @@ func TestDefaultReaderRead(t *testing.T) {
 		t.Errorf("wanted 7 got %s", data)
 	}
 }
+
+func TestDefaultReaderMapSlice(t *testing.T) {
+	h := restruct.NewHandler(&sampleService{})
+	jh := map[string]string{"Content-Type": "application/json"}
+
+	tests := []struct {
+		name     string
+		method   string
+		path     string
+		body     string
+		headers  map[string]string
+		wantBody string
+		wantCode int
+	}{
+		// map[string]any with JSON body - should bind directly (no array wrapper needed)
+		{
+			name:     "json map body",
+			method:   http.MethodPost,
+			path:     "/save-map",
+			body:     `{"name":"test","value":42}`,
+			headers:  jh,
+			wantBody: `{"name":"test","value":42}`,
+			wantCode: 200,
+		},
+		// []int64 with JSON body - should bind directly
+		{
+			name:     "json slice body",
+			method:   http.MethodPost,
+			path:     "/save-slice",
+			body:     `[10,20,30]`,
+			headers:  jh,
+			wantBody: `60`,
+			wantCode: 200,
+		},
+		// struct with query params still works
+		{
+			name:     "struct with query params",
+			method:   http.MethodGet,
+			path:     "/search?q=hello&page=2",
+			body:     ``,
+			headers:  nil,
+			wantBody: `{"page":2,"q":"hello"}`,
+			wantCode: 200,
+		},
+		// struct with JSON body still works
+		{
+			name:     "struct with json body",
+			method:   http.MethodPost,
+			path:     "/add2",
+			body:     `{"a":5,"b":3}`,
+			headers:  jh,
+			wantBody: `8`,
+			wantCode: 200,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			for k, v := range tc.headers {
+				req.Header.Set(k, v)
+			}
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+
+			res := w.Result()
+			data, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
+			body := strings.TrimRight(string(data), "\n")
+
+			if res.StatusCode != tc.wantCode {
+				t.Errorf("want status %d, got %d", tc.wantCode, res.StatusCode)
+			}
+			if body != tc.wantBody {
+				t.Errorf("want body %q, got %q", tc.wantBody, body)
+			}
+		})
+	}
+}
+
